@@ -41,8 +41,12 @@ public/personas/
 1. face/gentle-dom-girl.png   ← あればこれ
 2. face/gentle-girl.png       ← 無ければこれ
 3. face/gentle-dom.png        ← 無ければこれ
-4. face/gentle.png            ← 無ければこれ
-5. （どれも無ければ空の枠）
+4. face/dom-girl.png          ← 無ければこれ
+5. face/gentle.png            ← 無ければこれ
+6. face/dom.png               ← 無ければこれ
+7. attitude/dom-girl.png      ← 合成後を用意していなければ、右の枠の絵を流用する
+8. attitude/dom.png
+9. （どれも無ければ点線の枠）
 ```
 
 つまり最小 **3枚**（`gentle` / `anxious` / `stubborn`）から始められる。
@@ -65,7 +69,8 @@ public/personas/
 
 ## 画像の仕様
 
-- **正方形**を推奨。表示側で切り抜くので、顔は中央寄せで
+- 縦長でも構わない。**上を基準に切り抜く**ので、顔が上のほうにある人物写真でも切れない
+- 正方形なら切り抜きなしでそのまま出る
 - 目安 512×512px 以上（大きく表示する場所があるため）
 - **画面上は白黒に変換して表示される。** カラーで作っても構わないが、
   白黒にしたときに潰れない明暗差をつけておくこと

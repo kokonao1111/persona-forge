@@ -30,7 +30,12 @@ export function facePaths(p: Persona): string[] {
     `${FACE_DIR}/face/${c}-${a}-${g}`, // 素直×ドS×女の子
     `${FACE_DIR}/face/${c}-${g}`, // 素直×女の子
     `${FACE_DIR}/face/${c}-${a}`, // 素直×ドS
+    `${FACE_DIR}/face/${a}-${g}`, // ドS×女の子
     `${FACE_DIR}/face/${c}`, // 素直
+    `${FACE_DIR}/face/${a}`, // ドS
+    // 合成後を用意していない段階では、態度の絵をそのまま使う
+    `${FACE_DIR}/attitude/${a}-${g}`,
+    `${FACE_DIR}/attitude/${a}`,
   ].flatMap(withExt)
 }
 

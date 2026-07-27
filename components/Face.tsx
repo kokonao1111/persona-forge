@@ -39,7 +39,8 @@ export function Face({
         if (i + 1 < paths.length) setI(i + 1)
         else setDead(true)
       }}
-      className={`h-full w-full object-cover [filter:grayscale(1)_contrast(1.05)] ${className}`}
+      // 縦長の人物写真でも顔が残るよう、中央ではなく上を基準に切る
+      className={`h-full w-full object-cover object-top [filter:grayscale(1)_contrast(1.05)] ${className}`}
     />
   )
 }
