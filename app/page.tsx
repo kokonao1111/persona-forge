@@ -127,7 +127,7 @@ function SetupScreen({
       <div className="mx-auto w-full max-w-[52rem] px-6 pb-24 pt-10">
         <header className="flex items-baseline justify-between border-b border-line-2 pb-3">
           <h1 className="text-sm tracking-[0.2em]">PERSONA FORGE</h1>
-          <p className="text-[10px] text-faint">人格を system prompt にコンパイルする</p>
+          <p className="text-[11px] text-faint">人格を system prompt にコンパイルする</p>
         </header>
 
         {/* 01 性格 */}
@@ -135,7 +135,7 @@ function SetupScreen({
           <div className="flex items-baseline gap-3">
             <span className="label">01</span>
             <h2 className="text-xs">性格</h2>
-            <span className="ml-auto text-[10px] text-faint">修正を求めたときの態度で決まる</span>
+            <span className="ml-auto text-[11px] text-faint">修正を求めたときの態度で決まる</span>
           </div>
 
           <div className="mt-3 border-t border-line">
@@ -153,7 +153,7 @@ function SetupScreen({
                   }`}
                 >
                   <span
-                    className={`w-4 shrink-0 text-[10px] ${on ? 'text-accent' : 'text-faint'}`}
+                    className={`w-4 shrink-0 text-[11px] ${on ? 'text-accent' : 'text-faint'}`}
                     aria-hidden
                   >
                     {on ? '■' : String(i + 1).padStart(2, '0')}
@@ -179,7 +179,7 @@ function SetupScreen({
           <div className="flex items-baseline gap-3">
             <span className="label">02</span>
             <h2 className="text-xs">態度</h2>
-            <span className="ml-auto text-[10px] text-faint">口調と対人姿勢。性格とは別の軸</span>
+            <span className="ml-auto text-[11px] text-faint">口調と対人姿勢。性格とは別の軸</span>
           </div>
 
           <div className="mt-3 flex border border-line-2">
@@ -192,7 +192,7 @@ function SetupScreen({
                     update((x) => ({ ...x, voice: { ...x.voice, attitude: a.key } }))
                   }
                   className={`flex-1 border-r border-line-2 py-2.5 text-xs last:border-r-0 ${
-                    on ? 'bg-accent text-bg' : 'text-dim hover:bg-panel hover:text-fg'
+                    on ? 'bg-solid text-bg' : 'text-dim hover:bg-panel hover:text-fg'
                   }`}
                 >
                   {a.label}
@@ -219,12 +219,12 @@ function SetupScreen({
 
             <button
               onClick={onConfirm}
-              className="mt-5 w-full bg-accent py-3 text-sm font-bold tracking-wide text-bg hover:bg-fg"
+              className="mt-5 w-full bg-solid py-3 text-sm font-bold tracking-wide text-bg hover:bg-accent"
             >
               話す →
             </button>
             {hasConversation && (
-              <p className="mt-2 text-center text-[10px] text-faint">
+              <p className="mt-2 text-center text-[11px] text-faint">
                 前回の会話の続きから話します
               </p>
             )}
@@ -343,7 +343,7 @@ function ChatScreen({
         <span className="min-w-0 flex-1 truncate text-xs text-accent">{comboName(persona)}</span>
         <button
           onClick={() => setTurns([])}
-          className="shrink-0 text-[10px] text-faint hover:text-fg"
+          className="shrink-0 text-[11px] text-faint hover:text-fg"
         >
           会話をリセット
         </button>
@@ -369,7 +369,7 @@ function ChatScreen({
                 {t.role === 'user' ? 'you' : persona.meta.name}
               </div>
               <div
-                className={`whitespace-pre-wrap font-sans text-[13.5px] leading-[1.85] ${
+                className={`whitespace-pre-wrap font-sans text-[14px] leading-[1.9] ${
                   t.role === 'user' ? 'text-dim' : 'text-fg'
                 }`}
               >
@@ -408,7 +408,7 @@ function ChatScreen({
           <button
             onClick={send}
             disabled={busy || !input.trim()}
-            className="shrink-0 border border-accent px-4 py-1.5 text-xs text-accent hover:bg-accent hover:text-bg disabled:border-line-2 disabled:text-faint disabled:hover:bg-transparent"
+            className="shrink-0 border border-accent px-4 py-1.5 text-xs text-accent hover:bg-solid hover:text-bg disabled:border-line-2 disabled:text-faint disabled:hover:bg-transparent"
           >
             送信
           </button>
@@ -430,7 +430,7 @@ function SmallButton({
   return (
     <button
       onClick={onClick}
-      className="border border-line-2 px-2.5 py-1.5 text-[10px] text-dim hover:border-accent hover:text-accent"
+      className="border border-line-2 px-2.5 py-1.5 text-[11px] text-dim hover:border-accent hover:text-accent"
     >
       {children}
     </button>
@@ -448,11 +448,11 @@ function PromptView({ system, reminder }: { system: string; reminder: string }) 
             setCopied(true)
             setTimeout(() => setCopied(false), 1200)
           }}
-          className="text-[10px] text-dim hover:text-accent"
+          className="text-[11px] text-dim hover:text-accent"
         >
           {copied ? 'copied' : 'copy system prompt'}
         </button>
-        <span className="text-[10px] text-faint">{system.length} chars</span>
+        <span className="text-[11px] text-faint">{system.length} chars</span>
       </div>
       <pre className="max-h-80 overflow-auto whitespace-pre-wrap p-3 text-[11px] leading-relaxed text-dim">
         {system}
@@ -622,7 +622,7 @@ function Editor({
                 onClick={() => update((x) => ({ ...x, voice: { ...x.voice, attitude: a.key } }))}
                 className={`flex-1 border-r border-line-2 py-1.5 text-[11px] last:border-r-0 ${
                   (p.voice.attitude ?? 'neutral') === a.key
-                    ? 'bg-accent text-bg'
+                    ? 'bg-solid text-bg'
                     : 'text-dim hover:text-fg'
                 }`}
               >
@@ -719,7 +719,7 @@ function Editor({
               onClick={() =>
                 update((x) => ({ ...x, examples: x.examples.filter((_, j) => j !== i) }))
               }
-              className="mt-1 text-[10px] text-faint hover:text-fg"
+              className="mt-1 text-[11px] text-faint hover:text-fg"
             >
               削除
             </button>
@@ -729,7 +729,7 @@ function Editor({
           onClick={() =>
             update((x) => ({ ...x, examples: [...x.examples, { user: '', assistant: '' }] }))
           }
-          className="text-[10px] text-faint hover:text-accent"
+          className="text-[11px] text-faint hover:text-accent"
         >
           + 応答例を追加
         </button>
@@ -767,7 +767,7 @@ function Group({
       <div className="flex items-baseline gap-3 border-b border-line pb-2">
         <span className="label">{n}</span>
         <h3 className="text-xs">{title}</h3>
-        {note && <span className="ml-auto text-[10px] text-faint">{note}</span>}
+        {note && <span className="ml-auto text-[11px] text-faint">{note}</span>}
       </div>
       <div className="mt-4 space-y-3.5">{children}</div>
     </section>
@@ -819,7 +819,7 @@ function Slider({
   return (
     <Row label={label}>
       <div className="flex items-center gap-3">
-        <span className="w-16 shrink-0 text-right text-[10px] text-faint">{lo}</span>
+        <span className="w-16 shrink-0 text-right text-[11px] text-faint">{lo}</span>
         <input
           type="range"
           min={1}
@@ -828,7 +828,7 @@ function Slider({
           onChange={(e) => onChange(Number(e.target.value) as Scale)}
           className="min-w-0 flex-1"
         />
-        <span className="w-16 shrink-0 text-[10px] text-faint">{hi}</span>
+        <span className="w-16 shrink-0 text-[11px] text-faint">{hi}</span>
       </div>
     </Row>
   )
@@ -861,7 +861,7 @@ function ListField({
             />
             <button
               onClick={() => onChange(items.filter((_, j) => j !== i))}
-              className="shrink-0 text-[10px] text-faint hover:text-fg"
+              className="shrink-0 text-[11px] text-faint hover:text-fg"
             >
               ×
             </button>
@@ -870,7 +870,7 @@ function ListField({
         {(!max || items.length < max) && (
           <button
             onClick={() => onChange([...items, ''])}
-            className="text-[10px] text-faint hover:text-accent"
+            className="text-[11px] text-faint hover:text-accent"
           >
             + 追加
           </button>

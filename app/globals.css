@@ -7,18 +7,21 @@
  *  UIの構造物はすべて等幅、人間が読む文章だけプロポーショナル。
  */
 /*
- * 色は使わない。白から黒までの5段階だけで階層を作る。
+ * 色は使わない。白から黒までの段階だけで階層を作る。
  * 「選択されている」は色ではなく、明度・罫線・塗りの反転で示す。
+ * 各段階には背景に対するコントラスト比を実測して添えてある。
+ * 小さい文字を使う以上、最下段でも 4.5:1 を割らせない。
  */
 @theme {
-  --color-bg: #0a0a0a;
-  --color-panel: #131313;
-  --color-line: #1e1e1e;
-  --color-line-2: #303030;
-  --color-fg: #d2d2d2; /* 本文 */
-  --color-dim: #808080; /* 副次 */
-  --color-faint: #545454; /* ラベル・補足 */
-  --color-accent: #ffffff; /* 強調はここだけ。純白 */
+  --color-bg: #0d0d0d;
+  --color-panel: #171717;
+  --color-line: #242424;
+  --color-line-2: #383838;
+  --color-fg: #e8e8e8; /* 本文        15.9:1 */
+  --color-dim: #a6a6a6; /* 副次         8.0:1 */
+  --color-faint: #8c8c8c; /* ラベル・補足 5.8:1 */
+  --color-accent: #f5f5f5; /* 強調        17.8:1 */
+  --color-solid: #dcdcdc; /* 塗りつぶしの面 14.2:1。純白は眩しいので落とす */
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -39,8 +42,8 @@ body {
 
 /* 見出しの上の小さいラベル */
 .label {
-  font-size: 10px;
-  letter-spacing: 0.18em;
+  font-size: 11px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-faint);
 }
