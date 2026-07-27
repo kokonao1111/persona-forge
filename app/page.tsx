@@ -325,22 +325,44 @@ function ChatScreen({
     setInput('')
     setErr(null)
     const history = turns
-    setTurns([...history, { role: 'user', content: raw }])
+    const withUser: Turn[] = [...history, { role: 'user', content: raw }]
+    setTurns(withUser)
     setBusy(true)
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ persona, history, message, override }),
+        body: JSON.stringify({ persona, history, message, override, stream: true }),
       })
-      const data = await res.json()
-      if (data.error) setErr(data.error)
-      else
-        setTurns([
-          ...history,
-          { role: 'user', content: raw },
-          { role: 'assistant', content: data.text, deliberation: data.deliberation },
-        ])
+      if (!res.body) throw new Error('応答が空です')
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let carry = ''
+      let acc = ''
+
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) break
+        carry += decoder.decode(value, { stream: true })
+
+        // NDJSON。最後の1行は途中かもしれないので carry に残す
+        const lines = carry.split('\n')
+        carry = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.trim()) continue
+          const ev = JSON.parse(line) as { t?: string; done?: boolean; error?: string }
+          if (ev.error) {
+            setErr(ev.error)
+            continue
+          }
+          if (ev.t) {
+            acc += ev.t
+            setTurns([...withUser, { role: 'assistant', content: acc }])
+          }
+        }
+      }
     } catch (e) {
       setErr(String(e))
     } finally {
@@ -375,10 +397,15 @@ function ChatScreen({
           )}
 
           {turns.map((t, i) => (
-            <Message key={i} turn={t} name={displayName(persona)} />
+            <Message
+              key={i}
+              turn={t}
+              name={displayName(persona)}
+              streaming={busy && i === turns.length - 1 && t.role === 'assistant'}
+            />
           ))}
 
-          {busy && (
+          {busy && turns[turns.length - 1]?.role === 'user' && (
             <div className="label animate-pulse text-accent">
               {displayName(persona)}が書いています
             </div>
@@ -418,7 +445,15 @@ function ChatScreen({
   )
 }
 
-function Message({ turn, name }: { turn: Turn; name: string }) {
+function Message({
+  turn,
+  name,
+  streaming,
+}: {
+  turn: Turn
+  name: string
+  streaming?: boolean
+}) {
   const mine = turn.role === 'user'
   return (
     <article className="mb-7">
@@ -431,6 +466,7 @@ function Message({ turn, name }: { turn: Turn; name: string }) {
         }`}
       >
         {turn.content}
+        {streaming && <span className="ml-0.5 inline-block animate-pulse">▌</span>}
       </div>
     </article>
   )
