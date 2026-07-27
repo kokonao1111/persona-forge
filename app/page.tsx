@@ -123,14 +123,12 @@ function SetupScreen({
   const [promptOpen, setPromptOpen] = useState(false)
   const compiled = useMemo(() => (active ? compile(active) : null), [active])
   const attitude = active ? attitudeOf(active) : 'neutral'
-  const attitudeDef = ATTITUDES.find((a) => a.key === attitude)
 
   return (
     <div className="h-dvh overflow-y-auto">
       <div className="mx-auto w-full max-w-[52rem] px-6 pb-24 pt-10">
-        <header className="flex items-baseline justify-between border-b border-line-2 pb-3">
+        <header className="border-b border-line-2 pb-3">
           <h1 className="text-sm tracking-[0.2em]">PERSONA FORGE</h1>
-          <p className="text-[11px] text-faint">人格を system prompt にコンパイルする</p>
         </header>
 
         {/* 01 性格 */}
@@ -138,12 +136,10 @@ function SetupScreen({
           <div className="flex items-baseline gap-3">
             <span className="label">01</span>
             <h2 className="text-xs">性格</h2>
-            <span className="ml-auto text-[11px] text-faint">修正を求めたときの態度で決まる</span>
           </div>
 
           <div className="mt-3 border-t border-line">
             {personas.map((p, i) => {
-              const preset = PRESETS.find((x) => x.key === p.meta.basePreset)
               const on = p.id === active?.id
               return (
                 <button
@@ -164,13 +160,6 @@ function SetupScreen({
                   <span className={`w-24 shrink-0 text-sm ${on ? 'text-accent' : ''}`}>
                     {displayName(p)}
                   </span>
-                  <span
-                    className={`min-w-0 flex-1 font-sans text-xs leading-relaxed ${
-                      on ? 'text-fg' : 'text-dim'
-                    }`}
-                  >
-                    {preset?.onRevision ?? p.identity.oneLiner}
-                  </span>
                 </button>
               )
             })}
@@ -182,7 +171,6 @@ function SetupScreen({
           <div className="flex items-baseline gap-3">
             <span className="label">02</span>
             <h2 className="text-xs">態度</h2>
-            <span className="ml-auto text-[11px] text-faint">口調と対人姿勢。性格とは別の軸</span>
           </div>
 
           <div className="mt-3 flex border border-line-2">
@@ -203,9 +191,6 @@ function SetupScreen({
               )
             })}
           </div>
-          <p className="mt-2 px-1 font-sans text-xs leading-relaxed text-faint">
-            {attitudeDef?.hint}
-          </p>
         </section>
 
         {/* 03 性別 */}
@@ -213,7 +198,6 @@ function SetupScreen({
           <div className="flex items-baseline gap-3">
             <span className="label">03</span>
             <h2 className="text-xs">性別</h2>
-            <span className="ml-auto text-[11px] text-faint">言葉づかいと呼び方が変わる</span>
           </div>
 
           <div className="mt-3 flex border border-line-2">
@@ -239,12 +223,6 @@ function SetupScreen({
               )
             })}
           </div>
-          <p className="mt-2 px-1 font-sans text-xs leading-relaxed text-faint">
-            {GENDERS.find((g) => g.key === (active?.identity.gender ?? 'none'))?.hint}
-            {active?.meta.honorific
-              ? ` — 「${active.meta.name}${active.meta.honorific}」と表示されます`
-              : ''}
-          </p>
         </section>
 
         {/* まとめ + 確定 */}
@@ -254,11 +232,6 @@ function SetupScreen({
               <span className="label">selected</span>
               <span className="text-accent">{comboName(active)}</span>
             </div>
-            <p className="mt-2 font-sans text-xs leading-relaxed text-dim">
-              {active.identity.oneLiner}
-              {attitude !== 'neutral' && ` — ${attitudeDef?.hint}`}
-            </p>
-
             <button
               onClick={onConfirm}
               className="mt-5 w-full bg-solid py-3 text-sm font-bold tracking-wide text-bg hover:bg-accent"
@@ -394,12 +367,10 @@ function ChatScreen({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[46rem] px-6 py-8">
           {!turns.length && (
-            <div className="border-l-2 border-line-2 pl-4 font-sans text-xs leading-loose text-faint">
-              何か作らせたあとに「ここ直して」と言ってみてください。
+            <div className="font-sans text-xs leading-loose text-faint">
+              話しかけてみてください。
               <br />
-              性格の設定で、直すか・突っぱねるかが変わります。
-              <br />
-              <span className="font-mono text-dim">/override</span> で始めると、そのメッセージだけ人格を外せます。
+              <span className="font-mono">/override</span> で始めると、そのメッセージだけ人格を外せます。
             </div>
           )}
 
