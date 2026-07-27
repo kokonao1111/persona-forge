@@ -15,16 +15,16 @@ const STORE_KEY = 'persona-forge/personas'
 const EGO_LABEL = ['', '従順', '素直', '対等', '頑固', '独裁']
 
 type Turn = { role: 'user' | 'assistant'; content: string }
+type Screen = 'setup' | 'chat'
 
 export default function Page() {
   const [personas, setPersonas] = useState<Persona[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
-  const [leftOpen, setLeftOpen] = useState(true)
-  const [rightOpen, setRightOpen] = useState(true)
-  const [rightTab, setRightTab] = useState<'prompt' | 'chat'>('chat')
+  const [screen, setScreen] = useState<Screen>('setup')
+  // 会話は人格ごとに保持する。設定画面に戻って直しても消えない。
+  const [conversations, setConversations] = useState<Record<string, Turn[]>>({})
 
-  // ── 読み込み / 保存
   useEffect(() => {
     const raw = localStorage.getItem(STORE_KEY)
     let list: Persona[] = []
@@ -70,21 +70,77 @@ export default function Page() {
       if (id === activeId) setActiveId(next[0]?.id ?? null)
       return next
     })
+    setConversations((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
   }
-
-  const compiled = useMemo(() => (active ? compile(active) : null), [active])
 
   if (!loaded) return <div className="p-8 text-sm opacity-60">読み込み中…</div>
 
+  if (screen === 'chat' && active) {
+    return (
+      <ChatScreen
+        persona={active}
+        turns={conversations[active.id] ?? []}
+        setTurns={(t) => setConversations((prev) => ({ ...prev, [active.id]: t }))}
+        onBack={() => setScreen('setup')}
+      />
+    )
+  }
+
+  return (
+    <SetupScreen
+      personas={personas}
+      active={active}
+      setActiveId={setActiveId}
+      update={update}
+      addBlank={addBlank}
+      addFromPreset={addFromPreset}
+      remove={remove}
+      hasConversation={!!(active && (conversations[active.id]?.length ?? 0) > 0)}
+      onConfirm={() => setScreen('chat')}
+    />
+  )
+}
+
+// ── 画面1: 人格設定 ───────────────────────────
+
+function SetupScreen({
+  personas,
+  active,
+  setActiveId,
+  update,
+  addBlank,
+  addFromPreset,
+  remove,
+  hasConversation,
+  onConfirm,
+}: {
+  personas: Persona[]
+  active: Persona | null
+  setActiveId: (id: string) => void
+  update: (fn: (p: Persona) => Persona) => void
+  addBlank: () => void
+  addFromPreset: (key: string) => void
+  remove: (id: string) => void
+  hasConversation: boolean
+  onConfirm: () => void
+}) {
+  const [listOpen, setListOpen] = useState(true)
+  const [promptOpen, setPromptOpen] = useState(false)
+  const compiled = useMemo(() => (active ? compile(active) : null), [active])
+
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-neutral-950 text-neutral-100">
-      {/* ── 左: 人格リスト ── */}
-      {leftOpen ? (
+      {/* 左: 人格リスト */}
+      {listOpen ? (
         <aside className="flex w-60 shrink-0 flex-col border-r border-neutral-800">
           <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
             <span className="text-xs font-semibold tracking-wide opacity-70">人格</span>
             <button
-              onClick={() => setLeftOpen(false)}
+              onClick={() => setListOpen(false)}
               className="rounded px-1.5 py-0.5 text-xs opacity-50 hover:bg-neutral-800 hover:opacity-100"
               title="折りたたむ"
             >
@@ -96,7 +152,7 @@ export default function Page() {
               <div
                 key={p.id}
                 className={`group mb-1 flex items-center gap-2 rounded px-2 py-1.5 text-sm ${
-                  p.id === activeId ? 'bg-neutral-800' : 'hover:bg-neutral-900'
+                  p.id === active?.id ? 'bg-neutral-800' : 'hover:bg-neutral-900'
                 }`}
               >
                 <button
@@ -142,7 +198,7 @@ export default function Page() {
         </aside>
       ) : (
         <aside className="flex w-10 shrink-0 flex-col items-center gap-2 border-r border-neutral-800 py-2">
-          <button onClick={() => setLeftOpen(true)} className="text-xs opacity-50 hover:opacity-100">
+          <button onClick={() => setListOpen(true)} className="text-xs opacity-50 hover:opacity-100">
             ›
           </button>
           {personas.slice(0, 12).map((p) => (
@@ -150,7 +206,7 @@ export default function Page() {
               key={p.id}
               onClick={() => setActiveId(p.id)}
               title={p.meta.name}
-              className={`rounded px-1 text-lg ${p.id === activeId ? 'opacity-100' : 'opacity-40'}`}
+              className={`rounded px-1 text-lg ${p.id === active?.id ? 'opacity-100' : 'opacity-40'}`}
             >
               {p.meta.emoji}
             </button>
@@ -158,119 +214,89 @@ export default function Page() {
         </aside>
       )}
 
-      {/* ── 中央: エディタ ── */}
-      <main className="min-w-0 flex-1 overflow-y-auto">
-        {active ? (
-          <Editor persona={active} update={update} />
-        ) : (
-          <div className="p-8 text-sm opacity-60">左から人格を選ぶか、新規作成してください。</div>
-        )}
+      {/* 中央: エディタ + 確定バー */}
+      <main className="flex min-w-0 flex-1 flex-col">
+        <header className="flex items-center justify-between border-b border-neutral-800 px-5 py-2.5">
+          <div>
+            <h1 className="text-sm font-semibold">人格を設定する</h1>
+            <p className="text-[11px] opacity-50">
+              口調だけでなく、判断基準と作業の進め方まで決まります
+            </p>
+          </div>
+          <button
+            onClick={() => setPromptOpen((v) => !v)}
+            className="rounded border border-neutral-800 px-2.5 py-1.5 text-xs opacity-70 hover:bg-neutral-800 hover:opacity-100"
+          >
+            {promptOpen ? 'プロンプトを隠す' : '生成されるプロンプトを見る'}
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {active ? (
+            <Editor persona={active} update={update} />
+          ) : (
+            <div className="p-8 text-sm opacity-60">
+              左から人格を選ぶか、新規作成してください。
+            </div>
+          )}
+        </div>
+
+        {/* 確定バー */}
+        <div className="border-t border-neutral-800 bg-neutral-900/60 px-5 py-3">
+          {active ? (
+            <div className="mx-auto flex max-w-2xl items-center gap-3">
+              <div className="min-w-0 flex-1 text-xs">
+                <div className="truncate">
+                  <span className="mr-1">{active.meta.emoji}</span>
+                  <b>{active.meta.name}</b>
+                  <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-400">
+                    自我 {active.autonomy.ego}/5 · {EGO_LABEL[active.autonomy.ego]}
+                  </span>
+                </div>
+                <div className="mt-0.5 truncate opacity-50">
+                  {hasConversation ? '会話の続きから話します' : 'この人格で新しく話し始めます'}
+                </div>
+              </div>
+              <button
+                onClick={onConfirm}
+                className="shrink-0 rounded-lg bg-neutral-100 px-5 py-2.5 text-sm font-semibold text-neutral-900 hover:bg-white"
+              >
+                この人格で話す →
+              </button>
+            </div>
+          ) : (
+            <div className="text-center text-xs opacity-40">人格を選択してください</div>
+          )}
+        </div>
       </main>
 
-      {/* ── 右: プレビュー / チャット ── */}
-      {rightOpen ? (
-        <aside className="flex w-[26rem] shrink-0 flex-col border-l border-neutral-800">
-          <div className="flex items-center gap-1 border-b border-neutral-800 px-2 py-1.5">
-            <button
-              onClick={() => setRightOpen(false)}
-              className="rounded px-1.5 py-0.5 text-xs opacity-50 hover:bg-neutral-800 hover:opacity-100"
-            >
-              ›
-            </button>
-            {(['chat', 'prompt'] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setRightTab(t)}
-                className={`rounded px-2 py-1 text-xs ${
-                  rightTab === t ? 'bg-neutral-800' : 'opacity-60 hover:opacity-100'
-                }`}
-              >
-                {t === 'chat' ? '試用チャット' : 'system prompt'}
-              </button>
-            ))}
-          </div>
-          {active && compiled ? (
-            rightTab === 'prompt' ? (
-              <PromptView system={compiled.system} reminder={compiled.reminder} />
-            ) : (
-              <Chat persona={active} />
-            )
-          ) : (
-            <div className="p-4 text-sm opacity-60">人格を選択してください。</div>
-          )}
-        </aside>
-      ) : (
-        <aside className="flex w-10 shrink-0 flex-col items-center gap-3 border-l border-neutral-800 py-2">
-          <button onClick={() => setRightOpen(true)} className="text-xs opacity-50 hover:opacity-100">
-            ‹
-          </button>
-          <button
-            onClick={() => {
-              setRightOpen(true)
-              setRightTab('chat')
-            }}
-            title="試用チャット"
-          >
-            💬
-          </button>
-          <button
-            onClick={() => {
-              setRightOpen(true)
-              setRightTab('prompt')
-            }}
-            title="system prompt"
-          >
-            📄
-          </button>
+      {/* 右: 生成プロンプト（任意表示） */}
+      {promptOpen && compiled && (
+        <aside className="flex w-[24rem] shrink-0 flex-col border-l border-neutral-800">
+          <PromptView system={compiled.system} reminder={compiled.reminder} />
         </aside>
       )}
     </div>
   )
 }
 
-// ─────────────────────────────────────────────
+// ── 画面2: チャット ───────────────────────────
 
-function PromptView({ system, reminder }: { system: string; reminder: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-1.5">
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(system)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1200)
-          }}
-          className="rounded bg-neutral-800 px-2 py-1 text-xs hover:bg-neutral-700"
-        >
-          {copied ? 'コピーしました' : 'system promptをコピー'}
-        </button>
-        <span className="text-[10px] opacity-40">{system.length} 文字</span>
-      </div>
-      <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap p-3 text-[11px] leading-relaxed">
-        {system}
-      </pre>
-      <div className="border-t border-neutral-800 p-3">
-        <div className="mb-1 text-[10px] font-semibold opacity-50">
-          毎ターン再注入されるリマインダー（role: system）
-        </div>
-        <pre className="whitespace-pre-wrap text-[11px] leading-relaxed opacity-80">{reminder}</pre>
-      </div>
-    </div>
-  )
-}
-
-function Chat({ persona }: { persona: Persona }) {
-  const [turns, setTurns] = useState<Turn[]>([])
+function ChatScreen({
+  persona,
+  turns,
+  setTurns,
+  onBack,
+}: {
+  persona: Persona
+  turns: Turn[]
+  setTurns: (t: Turn[]) => void
+  onBack: () => void
+}) {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const bottom = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    setTurns([])
-    setErr(null)
-  }, [persona.id])
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' })
@@ -297,7 +323,7 @@ function Chat({ persona }: { persona: Persona }) {
       })
       const data = await res.json()
       if (data.error) setErr(data.error)
-      else setTurns((prev) => [...prev, { role: 'assistant', content: data.text }])
+      else setTurns([...history, { role: 'user', content: raw }, { role: 'assistant', content: data.text }])
     } catch (e) {
       setErr(String(e))
     } finally {
@@ -306,65 +332,121 @@ function Chat({ persona }: { persona: Persona }) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-        {!turns.length && (
-          <div className="rounded border border-neutral-800 p-3 text-xs leading-relaxed opacity-60">
-            {persona.meta.emoji} <b>{persona.meta.name}</b>（自我{persona.autonomy.ego}/5 —{' '}
-            {EGO_LABEL[persona.autonomy.ego]}）と話せます。
-            <br />
-            <br />
-            まず何か作らせて、そのあと「ここ直して」と言ってみてください。自我の設定で反応が変わります。
-            <br />
-            <br />
-            <code className="opacity-70">/override 〜</code> で人格を一時解除できます。
+    <div className="flex h-dvh w-full flex-col overflow-hidden bg-neutral-950 text-neutral-100">
+      <header className="flex shrink-0 items-center gap-3 border-b border-neutral-800 px-4 py-2.5">
+        <button
+          onClick={onBack}
+          className="shrink-0 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs hover:bg-neutral-800"
+        >
+          ← 人格を編集
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm">
+            <span className="mr-1.5 text-base">{persona.meta.emoji}</span>
+            <b>{persona.meta.name}</b>
+            <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-400">
+              自我 {persona.autonomy.ego}/5 · {EGO_LABEL[persona.autonomy.ego]}
+            </span>
           </div>
-        )}
-        {turns.map((t, i) => (
-          <div key={i} className={t.role === 'user' ? 'text-right' : ''}>
-            <div
-              className={`inline-block max-w-[92%] whitespace-pre-wrap rounded-lg px-3 py-2 text-left text-[13px] leading-relaxed ${
-                t.role === 'user' ? 'bg-blue-900/40' : 'bg-neutral-800'
-              }`}
-            >
-              {t.content}
+          <div className="truncate text-[11px] opacity-40">{persona.identity.oneLiner}</div>
+        </div>
+        <button
+          onClick={() => setTurns([])}
+          className="shrink-0 rounded-lg border border-neutral-800 px-3 py-1.5 text-xs opacity-70 hover:bg-neutral-800 hover:opacity-100"
+        >
+          会話をリセット
+        </button>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
+          {!turns.length && (
+            <div className="rounded-lg border border-neutral-800 p-4 text-xs leading-relaxed opacity-60">
+              <b>
+                {persona.meta.emoji} {persona.meta.name}
+              </b>
+              （自我{persona.autonomy.ego}/5 — {EGO_LABEL[persona.autonomy.ego]}）と話せます。
+              <br />
+              <br />
+              まず何か作らせて、そのあと「ここ直して」と言ってみてください。自我の設定で反応が変わります。
+              <br />
+              <br />
+              <code className="opacity-70">/override 〜</code> と打つと、そのメッセージだけ人格を解除できます。
             </div>
-          </div>
-        ))}
-        {busy && <div className="text-xs opacity-50">…考えています</div>}
-        {err && (
-          <div className="rounded border border-red-900 bg-red-950/40 p-2 text-xs text-red-300">
-            {err}
-          </div>
-        )}
-        <div ref={bottom} />
+          )}
+          {turns.map((t, i) => (
+            <div key={i} className={t.role === 'user' ? 'flex justify-end' : ''}>
+              <div
+                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                  t.role === 'user' ? 'bg-blue-900/40' : 'bg-neutral-800'
+                }`}
+              >
+                {t.content}
+              </div>
+            </div>
+          ))}
+          {busy && <div className="text-xs opacity-50">…考えています</div>}
+          {err && (
+            <div className="rounded border border-red-900 bg-red-950/40 p-3 text-xs text-red-300">
+              {err}
+            </div>
+          )}
+          <div ref={bottom} />
+        </div>
       </div>
-      <div className="border-t border-neutral-800 p-2">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send()
-          }}
-          rows={3}
-          placeholder="メッセージ（⌘/Ctrl + Enter で送信）"
-          className="w-full resize-none rounded border border-neutral-800 bg-neutral-900 p-2 text-[13px] outline-none focus:border-neutral-600"
-        />
-        <div className="mt-1 flex gap-2">
+
+      <div className="shrink-0 border-t border-neutral-800 p-3">
+        <div className="mx-auto flex max-w-3xl items-end gap-2">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send()
+            }}
+            rows={2}
+            placeholder="メッセージ（⌘/Ctrl + Enter で送信）"
+            className="min-w-0 flex-1 resize-none rounded-lg border border-neutral-800 bg-neutral-900 p-2.5 text-sm outline-none focus:border-neutral-600"
+          />
           <button
             onClick={send}
             disabled={busy}
-            className="flex-1 rounded bg-neutral-100 px-3 py-1.5 text-xs font-medium text-neutral-900 disabled:opacity-40"
+            className="shrink-0 rounded-lg bg-neutral-100 px-5 py-2.5 text-sm font-semibold text-neutral-900 disabled:opacity-40"
           >
             送信
           </button>
-          <button
-            onClick={() => setTurns([])}
-            className="rounded border border-neutral-800 px-3 py-1.5 text-xs hover:bg-neutral-800"
-          >
-            会話をリセット
-          </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────
+
+function PromptView({ system, reminder }: { system: string; reminder: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(system)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1200)
+          }}
+          className="rounded bg-neutral-800 px-2 py-1 text-xs hover:bg-neutral-700"
+        >
+          {copied ? 'コピーしました' : 'system promptをコピー'}
+        </button>
+        <span className="text-[10px] opacity-40">{system.length} 文字</span>
+      </div>
+      <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap p-3 text-[11px] leading-relaxed">
+        {system}
+      </pre>
+      <div className="border-t border-neutral-800 p-3">
+        <div className="mb-1 text-[10px] font-semibold opacity-50">
+          毎ターン再注入されるリマインダー（role: system）
+        </div>
+        <pre className="whitespace-pre-wrap text-[11px] leading-relaxed opacity-80">{reminder}</pre>
       </div>
     </div>
   )
@@ -420,7 +502,7 @@ function Editor({
                 autonomy: { ...x.autonomy, ego: Number(e.target.value) as Scale },
               }))
             }
-            className="flex-1 accent-amber-400"
+            className="min-w-0 flex-1 accent-amber-400"
           />
           <div className="w-24 text-right">
             <div className="text-lg font-bold text-amber-400">{EGO_LABEL[p.autonomy.ego]}</div>
