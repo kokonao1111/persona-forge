@@ -8,10 +8,34 @@ export type Attitude = 'dom' | 'neutral' | 'sub'
 /** 性別。言葉づかいと、既定の敬称に効く。 */
 export type Gender = 'boy' | 'girl' | 'none'
 
-export const GENDERS: { key: Gender; label: string; honorific: string; hint: string }[] = [
-  { key: 'boy', label: '男の子', honorific: 'くん', hint: '「〜だよ」「〜だな」「〜さ」といった言葉づかい' },
-  { key: 'girl', label: '女の子', honorific: 'さん', hint: '「〜だね」「〜なの」「〜かな」といった言葉づかい' },
-  { key: 'none', label: '指定なし', honorific: 'さん', hint: '性別を感じさせない言葉づかい' },
+export const GENDERS: {
+  key: Gender
+  label: string
+  honorific: string
+  firstPerson: string
+  hint: string
+}[] = [
+  {
+    key: 'boy',
+    label: '男の子',
+    honorific: 'くん',
+    firstPerson: '俺',
+    hint: '「〜だよ」「〜だな」「〜さ」といった言葉づかい',
+  },
+  {
+    key: 'girl',
+    label: '女の子',
+    honorific: 'さん',
+    firstPerson: '私',
+    hint: '「〜だね」「〜なの」「〜かな」といった言葉づかい',
+  },
+  {
+    key: 'none',
+    label: '指定なし',
+    honorific: 'さん',
+    firstPerson: '私',
+    hint: '性別を感じさせない言葉づかい',
+  },
 ]
 
 /** 表示名。「心配性さん」のように敬称をつけて返す */

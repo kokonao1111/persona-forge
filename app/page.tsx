@@ -210,8 +210,9 @@ function SetupScreen({
                     update((x) => ({
                       ...x,
                       identity: { ...x.identity, gender: g.key },
-                      // 敬称は性別に合わせて既定を入れ替える（詳細設定で個別に変えられる）
+                      // 敬称と一人称は性別に合わせて既定を入れ替える（詳細設定で個別に変えられる）
                       meta: { ...x.meta, honorific: g.honorific },
+                      voice: { ...x.voice, firstPerson: g.firstPerson },
                     }))
                   }
                   className={`flex-1 border-r border-line-2 py-2.5 text-xs last:border-r-0 ${
@@ -456,17 +457,19 @@ function Message({
 }) {
   const mine = turn.role === 'user'
   return (
-    <article className="mb-7">
-      <div className={`label mb-1.5 ${mine ? 'text-faint' : 'text-accent'}`}>
-        {mine ? 'you' : name}
-      </div>
-      <div
-        className={`whitespace-pre-wrap font-sans text-[14px] leading-[1.9] ${
-          mine ? 'text-dim' : 'text-fg'
-        }`}
-      >
-        {turn.content}
-        {streaming && <span className="ml-0.5 inline-block animate-pulse">▌</span>}
+    <article className={`mb-7 flex ${mine ? 'justify-end' : 'justify-start'}`}>
+      <div className={mine ? 'max-w-[78%]' : 'w-full'}>
+        <div className={`label mb-1.5 ${mine ? 'text-right text-faint' : 'text-accent'}`}>
+          {mine ? 'you' : name}
+        </div>
+        <div
+          className={`whitespace-pre-wrap font-sans text-[14px] leading-[1.9] ${
+            mine ? 'border-r-2 border-line-2 bg-panel px-3 py-2 text-fg' : 'text-fg'
+          }`}
+        >
+          {turn.content}
+          {streaming && <span className="ml-0.5 inline-block animate-pulse">▌</span>}
+        </div>
       </div>
     </article>
   )
@@ -556,6 +559,7 @@ function Editor({
                     ...x,
                     identity: { ...x.identity, gender: g.key },
                     meta: { ...x.meta, honorific: g.honorific },
+                    voice: { ...x.voice, firstPerson: g.firstPerson },
                   }))
                 }
                 className={`flex-1 border-r border-line-2 py-1.5 text-[11px] last:border-r-0 ${
