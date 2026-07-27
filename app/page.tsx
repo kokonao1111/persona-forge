@@ -12,7 +12,7 @@ import {
   type Scale,
 } from '@/lib/persona'
 
-const STORE_KEY = 'persona-forge/v3'
+const STORE_KEY = 'persona-forge/v4'
 const EGO_LABEL = ['', '従順', '素直', '対等', '頑固', '独裁']
 
 type Turn = { role: 'user' | 'assistant'; content: string }
