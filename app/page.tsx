@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Face, EmptyFace } from '@/components/Face'
 import { compile } from '@/lib/compile'
+import { attitudePaths, facePaths, personalityPaths } from '@/lib/faces'
 import {
   ATTITUDES,
   GENDERS,
@@ -119,6 +121,7 @@ function SetupScreen({
   hasConversation: boolean
   onConfirm: () => void
 }) {
+  const [confirmed, setConfirmed] = useState(false)
   const [detailOpen, setDetailOpen] = useState(false)
   const [promptOpen, setPromptOpen] = useState(false)
   const compiled = useMemo(() => (active ? compile(active) : null), [active])
@@ -130,6 +133,56 @@ function SetupScreen({
         <header className="border-b border-line-2 pb-3">
           <h1 className="text-sm tracking-[0.2em]">PERSONA FORGE</h1>
         </header>
+
+        {/* 土台になる性別を先に決める */}
+        <section className="mt-8">
+          <div className="mb-3 flex items-baseline gap-3">
+            <span className="label">00</span>
+            <h2 className="text-xs">性別</h2>
+          </div>
+          <div className="flex border border-line-2">
+            {GENDERS.map((g) => {
+              const on = (active?.identity.gender ?? 'none') === g.key
+              return (
+                <button
+                  key={g.key}
+                  onClick={() => {
+                    setConfirmed(false)
+                    update((x) => ({
+                      ...x,
+                      identity: { ...x.identity, gender: g.key },
+                      // 敬称と一人称は性別に合わせて既定を入れ替える（詳細設定で個別に変えられる）
+                      meta: { ...x.meta, honorific: g.honorific },
+                      voice: { ...x.voice, firstPerson: g.firstPerson },
+                    }))
+                  }}
+                  className={`flex-1 border-r border-line-2 py-2.5 text-xs last:border-r-0 ${
+                    on ? 'bg-solid text-bg' : 'text-dim hover:bg-panel hover:text-fg'
+                  }`}
+                >
+                  {g.label}
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* 合成パネル。選んだ順に絵が埋まっていく */}
+        {active && (
+          <section className="mt-8 flex items-center justify-center gap-4 border-y border-line py-6">
+            <Slot label="性格" size="sm">
+              <Face paths={personalityPaths(active)} alt={active.meta.name} />
+            </Slot>
+            <span className="text-lg text-faint">+</span>
+            <Slot label="態度" size="sm">
+              <Face paths={attitudePaths(active)} alt={attitudeLabel(active)} />
+            </Slot>
+            <span className="text-lg text-faint">=</span>
+            <Slot label={confirmed ? displayName(active) : '？'} size="lg">
+              {confirmed && <Face paths={facePaths(active)} alt={displayName(active)} />}
+            </Slot>
+          </section>
+        )}
 
         {/* 01 性格 */}
         <section className="mt-10">
@@ -144,7 +197,10 @@ function SetupScreen({
               return (
                 <button
                   key={p.id}
-                  onClick={() => setActiveId(p.id)}
+                  onClick={() => {
+                    setConfirmed(false)
+                    setActiveId(p.id)
+                  }}
                   className={`group flex w-full items-baseline gap-4 border-b border-line py-3.5 pr-3 text-left transition-colors ${
                     on
                       ? 'border-l-2 border-l-accent bg-panel pl-[10px]'
@@ -179,9 +235,10 @@ function SetupScreen({
               return (
                 <button
                   key={a.key}
-                  onClick={() =>
+                  onClick={() => {
+                    setConfirmed(false)
                     update((x) => ({ ...x, voice: { ...x.voice, attitude: a.key } }))
-                  }
+                  }}
                   className={`flex-1 border-r border-line-2 py-2.5 text-xs last:border-r-0 ${
                     on ? 'bg-solid text-bg' : 'text-dim hover:bg-panel hover:text-fg'
                   }`}
@@ -193,56 +250,35 @@ function SetupScreen({
           </div>
         </section>
 
-        {/* 03 性別 */}
-        <section className="mt-10">
-          <div className="flex items-baseline gap-3">
-            <span className="label">03</span>
-            <h2 className="text-xs">性別</h2>
-          </div>
-
-          <div className="mt-3 flex border border-line-2">
-            {GENDERS.map((g) => {
-              const on = (active?.identity.gender ?? 'none') === g.key
-              return (
-                <button
-                  key={g.key}
-                  onClick={() =>
-                    update((x) => ({
-                      ...x,
-                      identity: { ...x.identity, gender: g.key },
-                      // 敬称と一人称は性別に合わせて既定を入れ替える（詳細設定で個別に変えられる）
-                      meta: { ...x.meta, honorific: g.honorific },
-                      voice: { ...x.voice, firstPerson: g.firstPerson },
-                    }))
-                  }
-                  className={`flex-1 border-r border-line-2 py-2.5 text-xs last:border-r-0 ${
-                    on ? 'bg-solid text-bg' : 'text-dim hover:bg-panel hover:text-fg'
-                  }`}
-                >
-                  {g.label}
-                </button>
-              )
-            })}
-          </div>
-        </section>
-
-        {/* まとめ + 確定 */}
+        {/* 確定は2段。まず人を決めて、それから話し始める */}
         {active && (
           <section className="mt-10 border-t border-line-2 pt-5">
             <div className="flex items-baseline gap-3">
               <span className="label">selected</span>
               <span className="text-accent">{comboName(active)}</span>
             </div>
-            <button
-              onClick={onConfirm}
-              className="mt-5 w-full bg-solid py-3 text-sm font-bold tracking-wide text-bg hover:bg-accent"
-            >
-              話す →
-            </button>
-            {hasConversation && (
-              <p className="mt-2 text-center text-[11px] text-faint">
-                前回の会話の続きから話します
-              </p>
+
+            {!confirmed ? (
+              <button
+                onClick={() => setConfirmed(true)}
+                className="mt-5 w-full border border-line-2 py-3 text-sm tracking-wide text-fg hover:border-accent hover:text-accent"
+              >
+                この人にする
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={onConfirm}
+                  className="mt-5 w-full bg-solid py-3 text-sm font-bold tracking-wide text-bg hover:bg-accent"
+                >
+                  話す →
+                </button>
+                {hasConversation && (
+                  <p className="mt-2 text-center text-[11px] text-faint">
+                    前回の会話の続きから話します
+                  </p>
+                )}
+              </>
             )}
           </section>
         )}
@@ -291,6 +327,30 @@ function SetupScreen({
       </div>
     </div>
   )
+}
+
+function Slot({
+  label,
+  size,
+  children,
+}: {
+  label: string
+  size: 'sm' | 'lg'
+  children?: React.ReactNode
+}) {
+  const box = size === 'lg' ? 'h-32 w-32' : 'h-24 w-24'
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div className={`${box} overflow-hidden border border-line-2 bg-panel`}>
+        {children ?? <EmptyFace />}
+      </div>
+      <span className="label max-w-28 truncate text-center">{label}</span>
+    </div>
+  )
+}
+
+function attitudeLabel(p: Persona): string {
+  return ATTITUDES.find((a) => a.key === attitudeOf(p))?.label ?? ''
 }
 
 // ── 画面2: 会話 ───────────────────────────────
@@ -402,6 +462,7 @@ function ChatScreen({
               key={i}
               turn={t}
               name={displayName(persona)}
+              face={facePaths(persona)}
               streaming={busy && i === turns.length - 1 && t.role === 'assistant'}
             />
           ))}
@@ -449,16 +510,23 @@ function ChatScreen({
 function Message({
   turn,
   name,
+  face,
   streaming,
 }: {
   turn: Turn
   name: string
+  face: string[]
   streaming?: boolean
 }) {
   const mine = turn.role === 'user'
   return (
-    <article className={`mb-7 flex ${mine ? 'justify-end' : 'justify-start'}`}>
-      <div className={mine ? 'max-w-[78%]' : 'w-full'}>
+    <article className={`mb-7 flex gap-3 ${mine ? 'justify-end' : 'justify-start'}`}>
+      {!mine && (
+        <div className="mt-6 h-9 w-9 shrink-0 overflow-hidden border border-line">
+          <Face paths={face} alt={name} />
+        </div>
+      )}
+      <div className={mine ? 'max-w-[78%]' : 'min-w-0 flex-1'}>
         <div className={`label mb-1.5 ${mine ? 'text-right text-faint' : 'text-accent'}`}>
           {mine ? 'you' : name}
         </div>
