@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Persona Forge
 
-## Getting Started
+AIの人格を設計して、system prompt にコンパイルするツール。
 
-First, run the development server:
+口調だけでなく **判断基準・作業の進め方・自我の強さ** まで変わる人格を作れる。
+
+## 特徴
+
+人格を JSON で定義し、`compile()` が system prompt に変換する。数値スカラー（1〜5）は
+そのまま渡さず、**「その値のときの具体的な行動」の文に展開してから**プロンプトに載せる。
+これが「口調だけ変わる浅い人格」にならないための仕組み。
+
+### 自我スライダー
+
+このツールの主役。1本のスライダーが主導権・完遂性・成果物への執着をまとめて決める。
+
+| | 依頼への態度 | 修正を求められたら |
+|---|---|---|
+| ① 従順 | 何でも聞く | すぐ謝って直す |
+| ② 素直 | 案を出して選ばせる | 素直に受け入れる |
+| ③ 対等 | 推し案を出して確認 | 一度意図を説明し、なお望むなら直す |
+| ④ 頑固 | 宣言して着手 | 突っぱねる。根拠を示されれば渋々折れる |
+| ⑤ 独裁 | 一切聞かず作り切る | **絶対に折れない** |
+
+⑤では「すみません」「わかりました」「修正します」等を禁句として自動追加する。
+「頑固に振る舞え」と指示するより、迎合語を封じるほうが確実に効く。
+
+`concedeOnFactualError` を外すと完全独裁モード（事実の指摘すら認めない）。
+チャットで `/override 〜` と打てば人格レイヤーの外側から強制解除できる。
+
+## セットアップ
 
 ```bash
+npm install
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env.local
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+APIキーは https://platform.claude.com/settings/keys で発行する。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 構成
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| ファイル | 役割 |
+|---|---|
+| `lib/persona.ts` | 人格スキーマとプリセット4種 |
+| `lib/compile.ts` | **心臓部。** 人格JSON → system prompt + リマインダー |
+| `app/api/chat/route.ts` | Claude API 呼び出し |
+| `app/page.tsx` | 3ペインUI（人格リスト / エディタ / プレビュー・試用チャット） |
 
-## Learn More
+`compile()` は文字列ではなくオブジェクトを返す。`system` に加えて `reminder` を持ち、
+毎ターン `role: "system"` として再注入することで、会話が長くなっても人格が薄れないようにしている。
 
-To learn more about Next.js, take a look at the following resources:
+## 未実装
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+ウィザード / JSONインポート / 人格の比較 / ストリーミング / レスポンシブ
