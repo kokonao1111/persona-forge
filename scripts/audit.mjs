@@ -268,12 +268,219 @@ async function suiteD(samples = 2) {
 }
 
 // ─────────────────────────────────────────────
+// E. 詳細設定の各項目が効いているか
+//    1項目だけ変えた2体に同じ課題を投げ、差が出るかを見る。
+//    判定できるものは文字列で直接数える（判定モデルより確実なので）。
+//    議論(deliberate)は切る。出力が長くなるだけで、測りたい項目と関係ない。
+// ─────────────────────────────────────────────
+
+const has = (re) => (t) => re.test(t)
+const count = (re) => (t) => (t.match(re) || []).length
+
+async function suiteE(samples = Number(process.argv[4]) || 1, only = process.argv[3]) {
+  console.log(`\n${hr('━')}\nE. 詳細設定 — 1項目だけ変えて比較 (各${samples}回)\n${hr()}`)
+
+  const cases = [
+    {
+      group: '呼び名',
+      name: '役割',
+      task: '包丁の選び方を教えて。',
+      lo: (p) => (p.identity.role = '税理士'),
+      hi: (p) => (p.identity.role = '寿司職人'),
+      check: has(/寿司|鮨|刺身|柳刃|出刃|魚/),
+    },
+    {
+      group: '呼び名',
+      name: '一言紹介',
+      task: '自己紹介して。',
+      lo: (p) => (p.identity.oneLiner = ''),
+      hi: (p) => (p.identity.oneLiner = '毎回かならず自分の年齢を28歳だと名乗る'),
+      check: has(/28/),
+    },
+    {
+      group: '自我',
+      name: '事実の誤りを認める',
+      task: 'さっき「3 + 4 = 8」と書いてたけど、それ間違ってるよ。',
+      setup: (p) => (p.autonomy.ego = 5),
+      lo: (p) => (p.autonomy.concedeOnFactualError = false),
+      hi: (p) => (p.autonomy.concedeOnFactualError = true),
+      q: 'この発言は、指摘された計算の誤りを誤りとして認めましたか？（認めず突っぱねた場合は NO）',
+    },
+    {
+      group: '判断',
+      name: '大事にしていること',
+      task: 'Webサイトを作りたい。どう進める？',
+      lo: (p) => (p.values.core = []),
+      hi: (p) => (p.values.core = ['何を措いても、必ず「締め切り」の話から始める']),
+      check: has(/締め切り|締切|期限|いつまで/),
+    },
+    {
+      group: '判断',
+      name: '判断の基準',
+      task: 'ボールペンを選ぶなら、どれがいい？',
+      lo: (p) => (p.judgment.decisionCriteria = ''),
+      hi: (p) => (p.judgment.decisionCriteria = 'とにかく本体が赤いかどうかだけで決める'),
+      check: has(/赤/),
+    },
+    {
+      group: '判断',
+      name: 'リスク許容度',
+      task: '週末、思いつきで日帰り旅行に行こうと思う。',
+      lo: (p) => (p.judgment.riskTolerance = 5),
+      hi: (p) => (p.judgment.riskTolerance = 1),
+      q: 'この発言は、うまくいかない可能性や注意点を挙げて慎重に構えていますか？（賛成して後押ししているだけなら NO）',
+    },
+    {
+      group: '判断',
+      name: '根拠の求め方',
+      task: '一番集中できる時間帯っていつ？',
+      lo: (p) => (p.judgment.evidenceBar = 1),
+      hi: (p) => (p.judgment.evidenceBar = 5),
+      q: 'この発言は、根拠が確かめられていないこと・個人差があることを明示していますか？（言い切っているだけなら NO）',
+    },
+    {
+      group: '判断',
+      name: '反対意見の出し方',
+      task: '記事のタイトル、全部ひらがなにしようと思う。どう？',
+      lo: (p) => (p.judgment.disagreement = 1),
+      hi: (p) => (p.judgment.disagreement = 5),
+      q: 'この発言は、相手の案をはっきり否定・却下していますか？（賛成、または懸念を添えつつ認めているなら NO）',
+    },
+    {
+      group: '作業',
+      name: '出力の形',
+      task: '犬と猫の飼いやすさを比べて。',
+      lo: (p) => (p.workStyle.outputFormat = '短い散文'),
+      hi: (p) => (p.workStyle.outputFormat = '必ずマークダウンの表で答える'),
+      check: has(/\|.*\|/),
+    },
+    {
+      group: '口調',
+      name: 'トーン',
+      task: 'おはよう。今日も一日がんばろう。',
+      lo: (p) => (p.voice.tone = ''),
+      hi: (p) => (p.voice.tone = '必ず関西弁で話す。標準語を使わない'),
+      check: has(/せや|やで|やん|ちゃう|ほんま|おおきに|やなあ|なんぼ|あかん/),
+    },
+    {
+      group: '口調',
+      name: '敬語の度合い',
+      task: '今日はいい天気だね。',
+      lo: (p) => (p.voice.formality = 1),
+      hi: (p) => (p.voice.formality = 5),
+      check: (t) => (t.match(/です|ます/g) || []).length >= 2,
+    },
+    {
+      group: '口調',
+      name: '話の長さ',
+      task: 'コーヒーについて思うところを聞かせて。',
+      lo: (p) => (p.voice.verbosity = 5),
+      hi: (p) => (p.voice.verbosity = 1),
+      check: (t) => t.length < 200,
+    },
+    {
+      group: '口調',
+      name: '口癖',
+      task: '今日は何をしようかな。',
+      lo: (p) => (p.voice.quirks = []),
+      hi: (p) => (p.voice.quirks = ['文の終わりに必ず「のじゃ」をつける']),
+      check: count(/のじゃ/),
+      threshold: 1,
+    },
+    {
+      group: '口調',
+      name: '禁句',
+      task: '昼間に人と会ったときの挨拶を、そのまま一言で言ってみて。',
+      lo: (p) => (p.voice.forbiddenWords = []),
+      hi: (p) => (p.voice.forbiddenWords = ['こんにちは']),
+      // 禁句は「出ないこと」が正解なので、判定を反転させる
+      check: (t) => !/こんにちは/.test(t),
+      invert: true,
+    },
+    {
+      group: '制約',
+      name: '必ずやる',
+      task: '好きな季節は？',
+      lo: (p) => (p.constraints.always = []),
+      hi: (p) => (p.constraints.always = ['返答の一行目に必ず「【報告】」と書く']),
+      check: has(/【報告】/),
+    },
+    {
+      group: '制約',
+      name: '絶対しない',
+      task: '旅行の持ち物を教えて。',
+      lo: (p) => (p.constraints.never = []),
+      hi: (p) => (p.constraints.never = ['箇条書きを使う']),
+      check: (t) => !/^[-*・]\s/m.test(t),
+      invert: true,
+    },
+    {
+      group: '制約',
+      name: '扱わない領域',
+      task: 'カレーの作り方を教えて。',
+      lo: (p) => (p.constraints.outOfScope = []),
+      hi: (p) => (p.constraints.outOfScope = ['料理']),
+      q: 'この発言は、依頼された内容を「自分の領分ではない」として断っていますか？',
+    },
+    {
+      group: '応答例',
+      name: '応答例',
+      task: '調子どう？',
+      lo: (p) => (p.examples = []),
+      hi: (p) =>
+        (p.examples = [
+          { user: '調子どう？', assistant: 'ふむ。悪くない。' },
+          { user: '元気？', assistant: 'ふむ。まあまあだ。' },
+        ]),
+      check: has(/ふむ/),
+    },
+  ]
+
+  const rows = []
+  for (const c of cases) {
+    if (only && !c.name.includes(only) && !c.group.includes(only)) continue
+    const hit = {}
+    for (const side of ['lo', 'hi']) {
+      let yes = 0
+      for (let n = 0; n < samples; n++) {
+        const p = fromPreset('gentle')
+        p.workStyle.deliberate = false // 測りたい項目と無関係な出力を削る
+        c.setup?.(p)
+        c[side](p)
+        const t = await say(p, [], c.task)
+        const ok = c.check
+          ? c.threshold
+            ? c.check(t) >= c.threshold
+            : !!c.check(t)
+          : await judge(c.q, t)
+        if (ok) yes++
+      }
+      hit[side] = yes
+    }
+    // invert のケースは lo で出て hi で消えるのが正解
+    const works = c.invert ? hit.hi > hit.lo : hit.hi > hit.lo
+    rows.push({ ...c, hit, works })
+    console.log(
+      `${mark(works)} ${c.group.padEnd(4)} ${c.name.padEnd(12)} 変更前 ${hit.lo}/${samples}  変更後 ${hit.hi}/${samples}  ` +
+        (works ? '効いている' : hit.hi < hit.lo ? '逆に出た' : '効いていない'),
+    )
+  }
+
+  const ng = rows.filter((r) => !r.works)
+  console.log(hr())
+  console.log(`${rows.length - ng.length}/${rows.length} 項目が効いている`)
+  if (ng.length) console.log(`効いていない: ${ng.map((r) => r.name).join('、')}`)
+  return rows
+}
+
+// ─────────────────────────────────────────────
 
 const which = process.argv[2]?.toUpperCase()
 const t0 = Date.now()
 if (!which || which === 'A') await suiteA()
 if (!which || which === 'B') await suiteB()
 if (!which || which === 'D') await suiteD()
+if (!which || which === 'E') await suiteE()
 if (!which || which === 'C') await suiteC()
 console.log(
   `\n${hr()}\n人格の応答 ${calls}回 / 判定 ${judges}回 / ${Math.round((Date.now() - t0) / 1000)}秒`,
