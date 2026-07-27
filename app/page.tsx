@@ -131,7 +131,7 @@ function SetupScreen({
     <div className="h-dvh overflow-y-auto">
       <div className="mx-auto w-full max-w-[52rem] px-6 pb-24 pt-10">
         <header className="border-b border-line-2 pb-3">
-          <h1 className="text-sm tracking-[0.2em]">PERSONA FORGE</h1>
+          <h1 className="text-sm tracking-[0.35em]">AI仮面</h1>
         </header>
 
         {/* 土台になる性別を先に決める */}

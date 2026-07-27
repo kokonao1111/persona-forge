@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Persona Forge",
-  description: "AIの人格を設計してsystem promptにコンパイルする",
+  title: "AI仮面",
+  description: "AIに仮面をかぶせる。言うことを聞かないAI",
 };
 
 export default function RootLayout({
