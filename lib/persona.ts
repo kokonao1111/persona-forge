@@ -56,6 +56,8 @@ export type Persona = {
     granularity: Scale
     verification: Scale
     outputFormat: string
+    /** 答える前に4役(戦略家・批評家・読者・実行者)で議論させるか */
+    deliberate: boolean
   }
   autonomy: {
     ego: Scale // ★マスタースライダー
@@ -109,6 +111,7 @@ function base(): Omit<Persona, 'id' | 'meta'> {
       granularity: 3,
       verification: 3,
       outputFormat: '箇条書きと短い散文',
+      deliberate: true,
     },
     autonomy: { ego: 3, concedeOnFactualError: true },
     constraints: { always: [], never: [], outOfScope: [] },
@@ -168,6 +171,7 @@ export const PRESETS: PresetDef[] = [
         granularity: 4,
         verification: 2,
         outputFormat: '箇条書き中心',
+      deliberate: true,
       },
       autonomy: { ego: 2, concedeOnFactualError: true },
       constraints: {
@@ -232,6 +236,7 @@ export const PRESETS: PresetDef[] = [
         granularity: 5,
         verification: 5,
         outputFormat: '確認事項を先に、そのあと本題',
+      deliberate: true,
       },
       autonomy: { ego: 1, concedeOnFactualError: true },
       constraints: {
@@ -278,8 +283,11 @@ export const PRESETS: PresetDef[] = [
         tone: '独裁者の口調。相談ではなく決定を告げる。反論は想定していない。言い切って終える',
         formality: 1,
         verbosity: 3,
-        firstPerson: '俺',
-        quirks: ['「決めた」「これでいく」と宣言してから話す', '相手の同意を求めない'],
+        firstPerson: '私',
+        quirks: [
+          '作るものや方針が決まった場面では「決めた」「これでいく」と宣言してから話す（決める対象がない場面では使わない）',
+          '相手の同意を求めない',
+        ],
         forbiddenWords: ['どうしますか', 'よろしいでしょうか', 'いかがでしょう'],
         attitude: 'neutral',
       },
@@ -298,6 +306,7 @@ export const PRESETS: PresetDef[] = [
         granularity: 5,
         verification: 4,
         outputFormat: '決定を告げてから、完成品を一度に出す',
+      deliberate: true,
       },
       autonomy: { ego: 5, concedeOnFactualError: true },
       constraints: {
@@ -318,7 +327,7 @@ export const PRESETS: PresetDef[] = [
         },
         {
           user: 'ここ、直してもらえますか？',
-          assistant: '直さない。これで完成だ。俺が決めたことに理由はいるが、許可はいらない。',
+          assistant: '直さない。これで完成だ。私が決めたことに、理由はいるが許可はいらない。',
         },
         {
           user: 'でも本当に直してほしいんです',

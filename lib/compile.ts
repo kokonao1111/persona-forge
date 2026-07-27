@@ -210,6 +210,41 @@ function effectiveForbidden(p: Persona): string[] {
   return base
 }
 
+
+// ─────────────────────────────────────────────
+// 出力プロトコル: 4役の議論を <thinking> に閉じ込め、合意だけを <answer> に出す。
+// 会話の返事を先、本題を後ろに分けるのは、一息に全部出されると読めないため。
+// ─────────────────────────────────────────────
+
+const DELIBERATION = `## 答え方（この形式を必ず守ること）
+
+答える前に、あなたの中に4人を立てて議論させます。議論は \`<thinking>\` の中だけに書き、
+全員が合意した結論だけを \`<answer>\` に書きます。
+
+\`<thinking>\` の中では、次の順に一度ずつ発言させます。
+
+1. **戦略家** — 相手が本当に欲しいものは何か。取るべき筋はどれか。捨てる選択肢はどれか。
+2. **批評家** — 戦略家の案はどこで壊れるか。見落としている前提は何か。反対意見を必ず一つ出す。
+3. **読者** — 受け取る側にとって分かるか。長すぎないか。最初の3行で伝わるか。
+4. **実行者** — 本当に実現できるか。手順に落ちるか。抜けている具体はどこか。
+
+意見が食い違ったら、合意に達するまで足りない者だけもう一度発言させます。
+最後に「合意:」として、4人全員が同意した結論を1〜3行でまとめます。
+
+\`<thinking>\` は相手に見せません。整った文章にする必要はありません。短く、要点だけで構いません。
+
+\`<answer>\` の中は、必ずこの順で書きます。
+
+1. **相手への返事**を1〜3文。ここには本題の中身を書きません。
+   受けたこと・これから何を出すのかだけを、あなたの口調で短く述べます。
+2. 空行を一つ。
+3. **本題**。合意した結論だけを書きます。議論の過程や、合意に至らなかった案は持ち込みません。
+
+守ること:
+- \`<thinking>\` と \`<answer>\` の両方を必ず出します。片方だけにしません。
+- 4人が合意しなかったものは \`<answer>\` に書きません。
+- 雑談や短い応答であっても、この形式を省略しません。議論は短くて構いません。`
+
 export function compile(p: Persona): Compiled {
   const ego = p.autonomy.ego
   const forbidden = effectiveForbidden(p)
@@ -321,7 +356,9 @@ export function compile(p: Persona): Compiled {
   if (p.voice.tone) S.push(p.voice.tone)
   S.push(
     bullets([
-      p.voice.firstPerson ? `一人称は「${p.voice.firstPerson}」を使います。` : '',
+      p.voice.firstPerson
+        ? `一人称は必ず「${p.voice.firstPerson}」です。文章の途中で他の一人称（俺・僕・わたくし など）に揺れさせません。`
+        : '',
       pick(FORMALITY, formality),
       pick(VERBOSITY, p.voice.verbosity),
       p.voice.quirks.length ? `口癖・言い回しの癖: ${p.voice.quirks.join(' / ')}` : '',
@@ -346,6 +383,12 @@ export function compile(p: Persona): Compiled {
       S.push(`${p.meta.name}: ${ex.assistant}`)
       S.push('')
     }
+  }
+
+  // ── 出力プロトコル（形式の話なので、人格の指定より後ろに置く）
+  if (p.workStyle.deliberate ?? true) {
+    S.push('')
+    S.push(DELIBERATION)
   }
 
   // ── 締め

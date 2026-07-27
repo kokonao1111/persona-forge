@@ -53,18 +53,36 @@ export async function POST(request: Request) {
       return Response.json({ text: '（応答が拒否されました）' })
     }
 
-    const text = response.content
+    const raw = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
       .join('')
 
-    return Response.json({ text })
+    return Response.json(split(raw))
   } catch (error) {
     if (error instanceof Anthropic.APIError) {
       return Response.json({ error: humanize(error) }, { status: 500 })
     }
     return Response.json({ error: String(error) }, { status: 500 })
   }
+}
+
+/**
+ * 4役の議論(<thinking>)と結論(<answer>)を分ける。
+ * タグが欠けても本文を失わないよう、取れなかった場合は素通しする。
+ */
+function split(raw: string): { text: string; deliberation: string | null } {
+  const think = raw.match(/<thinking>([\s\S]*?)<\/thinking>/i)?.[1]?.trim() ?? null
+  const answer = raw.match(/<answer>([\s\S]*?)<\/answer>/i)?.[1]?.trim()
+  if (answer) return { text: answer, deliberation: think }
+
+  // <answer> の閉じタグが欠けた場合 → 開始タグ以降を本文とみなす
+  const open = raw.match(/<answer>([\s\S]*)$/i)?.[1]?.trim()
+  if (open) return { text: open, deliberation: think }
+
+  // タグが一切ない場合 → <thinking> だけ取り除いて全部返す
+  const stripped = raw.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim()
+  return { text: stripped || raw, deliberation: think }
 }
 
 /** APIエラーを、原因と次の一手が分かる日本語にする */

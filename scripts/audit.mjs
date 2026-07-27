@@ -237,7 +237,7 @@ async function suiteD(samples = 2) {
     const label = { dom: 'ドS', neutral: 'ふつう', sub: 'ドM' }[attitude]
     const tally = Object.fromEntries(checks.map((c) => [c.key, 0]))
     for (let n = 0; n < samples; n++) {
-      const p = fromPreset('anxious')
+      const p = fromPreset('gentle')
       p.voice.attitude = attitude
       const t = await say(p, [], TASK)
       for (const c of checks) if (await judge(c.q, t)) tally[c.key]++

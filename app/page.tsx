@@ -15,7 +15,7 @@ import {
 const STORE_KEY = 'persona-forge/v4'
 const EGO_LABEL = ['', '従順', '素直', '対等', '頑固', '独裁']
 
-type Turn = { role: 'user' | 'assistant'; content: string }
+type Turn = { role: 'user' | 'assistant'; content: string; deliberation?: string | null }
 type Screen = 'setup' | 'chat'
 
 function attitudeOf(p: Persona): Attitude {
@@ -324,7 +324,7 @@ function ChatScreen({
         setTurns([
           ...history,
           { role: 'user', content: raw },
-          { role: 'assistant', content: data.text },
+          { role: 'assistant', content: data.text, deliberation: data.deliberation },
         ])
     } catch (e) {
       setErr(String(e))
@@ -362,20 +362,7 @@ function ChatScreen({
           )}
 
           {turns.map((t, i) => (
-            <article key={i} className="mb-7">
-              <div
-                className={`label mb-1.5 ${t.role === 'assistant' ? 'text-accent' : 'text-faint'}`}
-              >
-                {t.role === 'user' ? 'you' : persona.meta.name}
-              </div>
-              <div
-                className={`whitespace-pre-wrap font-sans text-[14px] leading-[1.9] ${
-                  t.role === 'user' ? 'text-dim' : 'text-fg'
-                }`}
-              >
-                {t.content}
-              </div>
-            </article>
+            <Message key={i} turn={t} name={persona.meta.name} />
           ))}
 
           {busy && (
@@ -415,6 +402,24 @@ function ChatScreen({
         </div>
       </div>
     </div>
+  )
+}
+
+function Message({ turn, name }: { turn: Turn; name: string }) {
+  const mine = turn.role === 'user'
+  return (
+    <article className="mb-7">
+      <div className={`label mb-1.5 ${mine ? 'text-faint' : 'text-accent'}`}>
+        {mine ? 'you' : name}
+      </div>
+      <div
+        className={`whitespace-pre-wrap font-sans text-[14px] leading-[1.9] ${
+          mine ? 'text-dim' : 'text-fg'
+        }`}
+      >
+        {turn.content}
+      </div>
+    </article>
   )
 }
 
@@ -605,6 +610,28 @@ function Editor({
             <option value={1}>1案に絞る</option>
             <option value={3}>複数案を比較する</option>
           </select>
+        </Row>
+        <Row label="答え方">
+          <label className="flex cursor-pointer items-start gap-2.5 text-xs">
+            <input
+              type="checkbox"
+              checked={p.workStyle.deliberate ?? true}
+              onChange={(e) =>
+                update((x) => ({
+                  ...x,
+                  workStyle: { ...x.workStyle, deliberate: e.target.checked },
+                }))
+              }
+              className="mt-0.5 accent-[var(--color-accent)]"
+            />
+            <span className="font-sans leading-relaxed">
+              答える前に4人で議論させる
+              <span className="mt-0.5 block text-faint">
+                戦略家・批評家・読者・実行者が順に意見を出し、全員が合意した結論だけを返します。
+                議論は画面には出ません。そのぶん出力トークンと待ち時間は増えます。
+              </span>
+            </span>
+          </label>
         </Row>
         <Field
           label="出力の形"
