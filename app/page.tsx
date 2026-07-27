@@ -2,16 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { compile } from '@/lib/compile'
-import {
-  PRESETS,
-  blankPersona,
-  fromPreset,
-  stamp,
-  type Persona,
-  type Scale,
-} from '@/lib/persona'
+import { PRESETS, fromPreset, stamp, type Persona, type Scale } from '@/lib/persona'
 
-const STORE_KEY = 'persona-forge/personas'
+const STORE_KEY = 'persona-forge/v2'
 const EGO_LABEL = ['', '従順', '素直', '対等', '頑固', '独裁']
 
 type Turn = { role: 'user' | 'assistant'; content: string }
@@ -35,9 +28,10 @@ export default function Page() {
         list = []
       }
     }
-    if (!list.length) list = PRESETS.map((p) => fromPreset(p.key))
+    // 3つの人格は常に揃っている状態にする（増やしたり消したりはしない）
+    if (list.length !== PRESETS.length) list = PRESETS.map((p) => fromPreset(p.key))
     setPersonas(list)
-    setActiveId(list[0]?.id ?? null)
+    setActiveId(list[1]?.id ?? list[0]?.id ?? null) // 既定は「対等」
     setLoaded(true)
   }, [])
 
@@ -52,29 +46,12 @@ export default function Page() {
     setPersonas((prev) => prev.map((p) => (p.id === active.id ? stamp(fn(p)) : p)))
   }
 
-  function addFromPreset(key: string) {
-    const p = fromPreset(key)
-    setPersonas((prev) => [...prev, p])
-    setActiveId(p.id)
-  }
-
-  function addBlank() {
-    const p = blankPersona()
-    setPersonas((prev) => [...prev, p])
-    setActiveId(p.id)
-  }
-
-  function remove(id: string) {
-    setPersonas((prev) => {
-      const next = prev.filter((p) => p.id !== id)
-      if (id === activeId) setActiveId(next[0]?.id ?? null)
-      return next
-    })
-    setConversations((prev) => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
+  /** 詳細設定をいじった人格を、選んだときの初期状態に戻す */
+  function reset(id: string) {
+    const p = personas.find((x) => x.id === id)
+    if (!p?.meta.basePreset) return
+    const fresh = fromPreset(p.meta.basePreset)
+    setPersonas((prev) => prev.map((x) => (x.id === id ? { ...fresh, id } : x)))
   }
 
   if (!loaded) return <div className="p-8 text-sm opacity-60">読み込み中…</div>
@@ -96,25 +73,21 @@ export default function Page() {
       active={active}
       setActiveId={setActiveId}
       update={update}
-      addBlank={addBlank}
-      addFromPreset={addFromPreset}
-      remove={remove}
+      reset={reset}
       hasConversation={!!(active && (conversations[active.id]?.length ?? 0) > 0)}
       onConfirm={() => setScreen('chat')}
     />
   )
 }
 
-// ── 画面1: 人格設定 ───────────────────────────
+// ── 画面1: 人格を選ぶ ─────────────────────────
 
 function SetupScreen({
   personas,
   active,
   setActiveId,
   update,
-  addBlank,
-  addFromPreset,
-  remove,
+  reset,
   hasConversation,
   onConfirm,
 }: {
@@ -122,160 +95,110 @@ function SetupScreen({
   active: Persona | null
   setActiveId: (id: string) => void
   update: (fn: (p: Persona) => Persona) => void
-  addBlank: () => void
-  addFromPreset: (key: string) => void
-  remove: (id: string) => void
+  reset: (id: string) => void
   hasConversation: boolean
   onConfirm: () => void
 }) {
-  const [listOpen, setListOpen] = useState(true)
+  const [detailOpen, setDetailOpen] = useState(false)
   const [promptOpen, setPromptOpen] = useState(false)
   const compiled = useMemo(() => (active ? compile(active) : null), [active])
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-neutral-950 text-neutral-100">
-      {/* 左: 人格リスト */}
-      {listOpen ? (
-        <aside className="flex w-60 shrink-0 flex-col border-r border-neutral-800">
-          <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
-            <span className="text-xs font-semibold tracking-wide opacity-70">人格</span>
-            <button
-              onClick={() => setListOpen(false)}
-              className="rounded px-1.5 py-0.5 text-xs opacity-50 hover:bg-neutral-800 hover:opacity-100"
-              title="折りたたむ"
-            >
-              ‹
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-2">
-            {personas.map((p) => (
-              <div
+    <div className="h-dvh w-full overflow-y-auto bg-neutral-950 text-neutral-100">
+      <div className="mx-auto max-w-3xl px-5 py-10">
+        <h1 className="text-xl font-semibold">どの性格で話しますか？</h1>
+        <p className="mt-1 text-sm opacity-50">
+          口調だけでなく、判断の仕方と、修正を求めたときの態度が変わります。
+        </p>
+
+        {/* 3択 */}
+        <div className="mt-6 space-y-3">
+          {personas.map((p) => {
+            const preset = PRESETS.find((x) => x.key === p.meta.basePreset)
+            const selected = p.id === active?.id
+            return (
+              <button
                 key={p.id}
-                className={`group mb-1 flex items-center gap-2 rounded px-2 py-1.5 text-sm ${
-                  p.id === active?.id ? 'bg-neutral-800' : 'hover:bg-neutral-900'
+                onClick={() => setActiveId(p.id)}
+                className={`flex w-full items-start gap-4 rounded-xl border p-4 text-left transition ${
+                  selected
+                    ? 'border-amber-400 bg-amber-500/10'
+                    : 'border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900'
                 }`}
               >
-                <button
-                  onClick={() => setActiveId(p.id)}
-                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                >
-                  <span>{p.meta.emoji}</span>
-                  <span className="truncate">{p.meta.name}</span>
-                  <span className="ml-auto shrink-0 text-[10px] opacity-40">
-                    自我{p.autonomy.ego}
+                <span className="text-3xl leading-none">{p.meta.emoji}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="text-base font-semibold">{p.meta.name}</span>
+                    {selected && (
+                      <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-neutral-900">
+                        選択中
+                      </span>
+                    )}
                   </span>
-                </button>
-                <button
-                  onClick={() => remove(p.id)}
-                  className="opacity-0 group-hover:opacity-50 hover:!opacity-100"
-                  title="削除"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="space-y-1 border-t border-neutral-800 p-2">
-            <button
-              onClick={addBlank}
-              className="w-full rounded bg-neutral-800 px-2 py-1.5 text-xs hover:bg-neutral-700"
-            >
-              ＋ 新規作成
-            </button>
-            <div className="grid grid-cols-2 gap-1">
-              {PRESETS.map((p) => (
-                <button
-                  key={p.key}
-                  onClick={() => addFromPreset(p.key)}
-                  className="truncate rounded border border-neutral-800 px-1.5 py-1 text-[11px] hover:bg-neutral-800"
-                  title={`プリセット「${p.persona.meta.name}」から作る`}
-                >
-                  {p.persona.meta.emoji} {p.persona.meta.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </aside>
-      ) : (
-        <aside className="flex w-10 shrink-0 flex-col items-center gap-2 border-r border-neutral-800 py-2">
-          <button onClick={() => setListOpen(true)} className="text-xs opacity-50 hover:opacity-100">
-            ›
-          </button>
-          {personas.slice(0, 12).map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setActiveId(p.id)}
-              title={p.meta.name}
-              className={`rounded px-1 text-lg ${p.id === active?.id ? 'opacity-100' : 'opacity-40'}`}
-            >
-              {p.meta.emoji}
-            </button>
-          ))}
-        </aside>
-      )}
-
-      {/* 中央: エディタ + 確定バー */}
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between border-b border-neutral-800 px-5 py-2.5">
-          <div>
-            <h1 className="text-sm font-semibold">人格を設定する</h1>
-            <p className="text-[11px] opacity-50">
-              口調だけでなく、判断基準と作業の進め方まで決まります
-            </p>
-          </div>
-          <button
-            onClick={() => setPromptOpen((v) => !v)}
-            className="rounded border border-neutral-800 px-2.5 py-1.5 text-xs opacity-70 hover:bg-neutral-800 hover:opacity-100"
-          >
-            {promptOpen ? 'プロンプトを隠す' : '生成されるプロンプトを見る'}
-          </button>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {active ? (
-            <Editor persona={active} update={update} />
-          ) : (
-            <div className="p-8 text-sm opacity-60">
-              左から人格を選ぶか、新規作成してください。
-            </div>
-          )}
-        </div>
-
-        {/* 確定バー */}
-        <div className="border-t border-neutral-800 bg-neutral-900/60 px-5 py-3">
-          {active ? (
-            <div className="mx-auto flex max-w-2xl items-center gap-3">
-              <div className="min-w-0 flex-1 text-xs">
-                <div className="truncate">
-                  <span className="mr-1">{active.meta.emoji}</span>
-                  <b>{active.meta.name}</b>
-                  <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-400">
-                    自我 {active.autonomy.ego}/5 · {EGO_LABEL[active.autonomy.ego]}
+                  <span className="mt-0.5 block text-sm opacity-60">{p.identity.oneLiner}</span>
+                  <span className="mt-2 block text-xs">
+                    <span className="opacity-40">修正を求めると：</span>
+                    <span
+                      className={selected ? 'text-amber-300' : 'opacity-80'}
+                    >{` ${preset?.onRevision ?? ''}`}</span>
                   </span>
-                </div>
-                <div className="mt-0.5 truncate opacity-50">
-                  {hasConversation ? '会話の続きから話します' : 'この人格で新しく話し始めます'}
-                </div>
-              </div>
-              <button
-                onClick={onConfirm}
-                className="shrink-0 rounded-lg bg-neutral-100 px-5 py-2.5 text-sm font-semibold text-neutral-900 hover:bg-white"
-              >
-                この人格で話す →
+                </span>
               </button>
+            )
+          })}
+        </div>
+
+        {/* 確定 */}
+        <button
+          onClick={onConfirm}
+          disabled={!active}
+          className="mt-6 w-full rounded-xl bg-neutral-100 px-5 py-3.5 text-base font-semibold text-neutral-900 hover:bg-white disabled:opacity-40"
+        >
+          {active ? `${active.meta.emoji} ${active.meta.name} で話す →` : '性格を選んでください'}
+        </button>
+        {hasConversation && (
+          <p className="mt-2 text-center text-xs opacity-40">前回の会話の続きから話します</p>
+        )}
+
+        {/* 詳細設定（既定で閉じている） */}
+        <div className="mt-10 border-t border-neutral-800 pt-4">
+          <button
+            onClick={() => setDetailOpen((v) => !v)}
+            className="flex items-center gap-2 text-xs opacity-50 hover:opacity-100"
+          >
+            <span>{detailOpen ? '▾' : '▸'}</span>
+            詳細設定（自分で作り込みたい人だけ）
+          </button>
+
+          {detailOpen && active && (
+            <div className="mt-4">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setPromptOpen((v) => !v)}
+                  className="rounded border border-neutral-800 px-2.5 py-1.5 text-xs opacity-70 hover:bg-neutral-800 hover:opacity-100"
+                >
+                  {promptOpen ? 'プロンプトを隠す' : '生成されるプロンプトを見る'}
+                </button>
+                <button
+                  onClick={() => reset(active.id)}
+                  className="rounded border border-neutral-800 px-2.5 py-1.5 text-xs opacity-70 hover:bg-neutral-800 hover:opacity-100"
+                >
+                  この性格を初期状態に戻す
+                </button>
+              </div>
+
+              {promptOpen && compiled && (
+                <div className="mb-4 max-h-96 overflow-hidden rounded-lg border border-neutral-800">
+                  <PromptView system={compiled.system} reminder={compiled.reminder} />
+                </div>
+              )}
+
+              <Editor persona={active} update={update} />
             </div>
-          ) : (
-            <div className="text-center text-xs opacity-40">人格を選択してください</div>
           )}
         </div>
-      </main>
-
-      {/* 右: 生成プロンプト（任意表示） */}
-      {promptOpen && compiled && (
-        <aside className="flex w-[24rem] shrink-0 flex-col border-l border-neutral-800">
-          <PromptView system={compiled.system} reminder={compiled.reminder} />
-        </aside>
-      )}
+      </div>
     </div>
   )
 }
