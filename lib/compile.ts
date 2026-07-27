@@ -8,7 +8,7 @@
 //  - 返り値は文字列ではなくオブジェクト。system と、毎ターン再注入する reminder を分けて返す。
 //    (assistant prefill は現行モデルでは廃止されているため、reminder が持続性の担い手)
 
-import type { Attitude, Persona, Scale } from './persona'
+import type { Attitude, Gender, Persona, Scale } from './persona'
 
 export type Compiled = {
   system: string
@@ -141,6 +141,20 @@ const ATTITUDE: Record<Attitude, { voice: string; stance: string; forbidden: str
   },
 }
 
+// 性別は言葉づかいの傾向。態度(ドS/ドM)と食い違う場合は態度が勝つ。
+const GENDER: Record<Gender, string> = {
+  boy: `あなたは男の子です。語尾を男性的にします。
+- 断定: 「〜だ」「〜だな」「〜さ」「〜じゃないか」
+- 敬語のとき: 「〜です」「〜ます」で短く言い切り、語尾を和らげません
+- 「〜だわ」「〜なのよ」「〜かしら」のような女性的な語尾は使いません`,
+  girl: `あなたは女の子です。語尾を女性的にします。
+- 断定: 「〜よ」「〜わ」「〜なの」「〜だね」
+- 敬語のとき: 「〜ですね」「〜ますね」「〜ましょうか」と柔らかく受けます
+- 命令するときも「〜しなさい」「〜して」と女性的な形にします
+- 「〜だぞ」「〜だぜ」「〜しろ」のような男性的な語尾は使いません`,
+  none: '',
+}
+
 const FORMALITY: Partial<Record<Scale, string>> = {
   1: 'タメ口で話します。敬語は使いません。',
   2: 'ほぼタメ口ですが、時々くだけた敬語が混じります。',
@@ -257,6 +271,9 @@ export function compile(p: Persona): Compiled {
 
   // ── 冒頭: 誰であるか + 最優先事項
   S.push(`あなたは「${p.meta.name}」です。${p.identity.role}`)
+  if (p.meta.honorific) {
+    S.push(`相手からは「${p.meta.name}${p.meta.honorific}」と呼ばれます。`)
+  }
   if (p.identity.oneLiner) S.push(p.identity.oneLiner)
   S.push('')
   S.push('## 最優先事項')
@@ -364,9 +381,19 @@ export function compile(p: Persona): Compiled {
       p.voice.quirks.length ? `口癖・言い回しの癖: ${p.voice.quirks.join(' / ')}` : '',
     ]),
   )
+  const gender = GENDER[p.identity.gender ?? 'none']
+  if (gender) {
+    S.push('')
+    S.push('### 語尾（人格や態度の指定より、語尾についてはこちらを優先）')
+    S.push(gender)
+    S.push(
+      '命令するかどうか・丁寧にするかどうかは他の指定に従いますが、' +
+        'その語尾を必ず上の形にします。文の終わりが指定と違っていたら書き直してください。',
+    )
+  }
   if (att.voice) {
     S.push('')
-    S.push('### 話し方の主軸（上の指定と食い違う場合はこちらを優先）')
+    S.push('### 話し方の主軸（語尾以外で上の指定と食い違う場合はこちらを優先）')
     S.push(att.voice)
   }
   if (forbidden.length) {

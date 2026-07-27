@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { compile } from '@/lib/compile'
 import {
   ATTITUDES,
+  GENDERS,
   PRESETS,
+  displayName,
   fromPreset,
   stamp,
   type Attitude,
@@ -12,7 +14,7 @@ import {
   type Scale,
 } from '@/lib/persona'
 
-const STORE_KEY = 'persona-forge/v4'
+const STORE_KEY = 'persona-forge/v5'
 const EGO_LABEL = ['', '従順', '素直', '対等', '頑固', '独裁']
 
 type Turn = { role: 'user' | 'assistant'; content: string; deliberation?: string | null }
@@ -25,7 +27,8 @@ function attitudeOf(p: Persona): Attitude {
 /** 「がんこ / ドS」のような組み合わせ名 */
 function comboName(p: Persona): string {
   const a = ATTITUDES.find((x) => x.key === attitudeOf(p))
-  return attitudeOf(p) === 'neutral' ? p.meta.name : `${p.meta.name} / ${a?.label}`
+  const name = displayName(p)
+  return attitudeOf(p) === 'neutral' ? name : `${name} / ${a?.label}`
 }
 
 export default function Page() {
@@ -158,8 +161,8 @@ function SetupScreen({
                   >
                     {on ? '■' : String(i + 1).padStart(2, '0')}
                   </span>
-                  <span className={`w-20 shrink-0 text-sm ${on ? 'text-accent' : ''}`}>
-                    {p.meta.name}
+                  <span className={`w-24 shrink-0 text-sm ${on ? 'text-accent' : ''}`}>
+                    {displayName(p)}
                   </span>
                   <span
                     className={`min-w-0 flex-1 font-sans text-xs leading-relaxed ${
@@ -202,6 +205,45 @@ function SetupScreen({
           </div>
           <p className="mt-2 px-1 font-sans text-xs leading-relaxed text-faint">
             {attitudeDef?.hint}
+          </p>
+        </section>
+
+        {/* 03 性別 */}
+        <section className="mt-10">
+          <div className="flex items-baseline gap-3">
+            <span className="label">03</span>
+            <h2 className="text-xs">性別</h2>
+            <span className="ml-auto text-[11px] text-faint">言葉づかいと呼び方が変わる</span>
+          </div>
+
+          <div className="mt-3 flex border border-line-2">
+            {GENDERS.map((g) => {
+              const on = (active?.identity.gender ?? 'none') === g.key
+              return (
+                <button
+                  key={g.key}
+                  onClick={() =>
+                    update((x) => ({
+                      ...x,
+                      identity: { ...x.identity, gender: g.key },
+                      // 敬称は性別に合わせて既定を入れ替える（詳細設定で個別に変えられる）
+                      meta: { ...x.meta, honorific: g.honorific },
+                    }))
+                  }
+                  className={`flex-1 border-r border-line-2 py-2.5 text-xs last:border-r-0 ${
+                    on ? 'bg-solid text-bg' : 'text-dim hover:bg-panel hover:text-fg'
+                  }`}
+                >
+                  {g.label}
+                </button>
+              )
+            })}
+          </div>
+          <p className="mt-2 px-1 font-sans text-xs leading-relaxed text-faint">
+            {GENDERS.find((g) => g.key === (active?.identity.gender ?? 'none'))?.hint}
+            {active?.meta.honorific
+              ? ` — 「${active.meta.name}${active.meta.honorific}」と表示されます`
+              : ''}
           </p>
         </section>
 
@@ -362,12 +404,12 @@ function ChatScreen({
           )}
 
           {turns.map((t, i) => (
-            <Message key={i} turn={t} name={persona.meta.name} />
+            <Message key={i} turn={t} name={displayName(persona)} />
           ))}
 
           {busy && (
             <div className="label animate-pulse text-accent">
-              {persona.meta.name} が書いています
+              {displayName(persona)}が書いています
             </div>
           )}
           {err && (
@@ -496,6 +538,34 @@ function Editor({
           label="一言紹介"
           value={p.identity.oneLiner}
           onChange={(v) => update((x) => ({ ...x, identity: { ...x.identity, oneLiner: v } }))}
+        />
+        <Row label="性別">
+          <div className="flex border border-line-2">
+            {GENDERS.map((g) => (
+              <button
+                key={g.key}
+                onClick={() =>
+                  update((x) => ({
+                    ...x,
+                    identity: { ...x.identity, gender: g.key },
+                    meta: { ...x.meta, honorific: g.honorific },
+                  }))
+                }
+                className={`flex-1 border-r border-line-2 py-1.5 text-[11px] last:border-r-0 ${
+                  (p.identity.gender ?? 'none') === g.key
+                    ? 'bg-solid text-bg'
+                    : 'text-dim hover:text-fg'
+                }`}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+        </Row>
+        <Field
+          label="呼び方（敬称）"
+          value={p.meta.honorific ?? ''}
+          onChange={(v) => update((x) => ({ ...x, meta: { ...x.meta, honorific: v } }))}
         />
       </Group>
 
@@ -731,7 +801,7 @@ function Editor({
             />
             <textarea
               value={ex.assistant}
-              placeholder={p.meta.name}
+              placeholder={displayName(p)}
               rows={2}
               onChange={(e) =>
                 update((x) => {

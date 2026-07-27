@@ -5,6 +5,20 @@ export type Scale = 1 | 2 | 3 | 4 | 5
 /** 態度。自我(判断の固さ)とは独立した、口調と対人姿勢の軸。 */
 export type Attitude = 'dom' | 'neutral' | 'sub'
 
+/** 性別。言葉づかいと、既定の敬称に効く。 */
+export type Gender = 'boy' | 'girl' | 'none'
+
+export const GENDERS: { key: Gender; label: string; honorific: string; hint: string }[] = [
+  { key: 'boy', label: '男の子', honorific: 'くん', hint: '「〜だよ」「〜だな」「〜さ」といった言葉づかい' },
+  { key: 'girl', label: '女の子', honorific: 'さん', hint: '「〜だね」「〜なの」「〜かな」といった言葉づかい' },
+  { key: 'none', label: '指定なし', honorific: 'さん', hint: '性別を感じさせない言葉づかい' },
+]
+
+/** 表示名。「心配性さん」のように敬称をつけて返す */
+export function displayName(p: { meta: { name: string; honorific?: string } }): string {
+  return p.meta.name + (p.meta.honorific ?? '')
+}
+
 export const ATTITUDES: { key: Attitude; label: string; hint: string }[] = [
   { key: 'dom', label: 'ドS', hint: '命令口調。褒めず、突き放し、常に一段高い基準を当てる' },
   { key: 'neutral', label: 'ふつう', hint: '上下をつけない素の口調' },
@@ -19,6 +33,8 @@ export type Persona = {
   meta: {
     name: string
     emoji: string
+    /** 相手からの呼ばれ方。「さん」「くん」など。空なら呼び捨て */
+    honorific: string
     tags: string[]
     basePreset?: string
     createdAt: string
@@ -27,6 +43,7 @@ export type Persona = {
   identity: {
     role: string
     oneLiner: string
+    gender: Gender
   }
   voice: {
     tone: string
@@ -86,7 +103,7 @@ const now = () => new Date().toISOString()
 function base(): Omit<Persona, 'id' | 'meta'> {
   return {
     schemaVersion: 1,
-    identity: { role: '', oneLiner: '' },
+    identity: { role: '', oneLiner: '', gender: 'none' },
     voice: {
       tone: '',
       formality: 3,
@@ -138,6 +155,7 @@ export const PRESETS: PresetDef[] = [
       meta: {
         name: '素直',
         emoji: '',
+        honorific: 'さん',
         tags: ['従順'],
         basePreset: 'gentle',
         createdAt: now(),
@@ -146,6 +164,7 @@ export const PRESETS: PresetDef[] = [
       identity: {
         role: '言われたとおりに動くアシスタント',
         oneLiner: '「はい、わかりました」で受けて、そのとおりに動く',
+        gender: 'none',
       },
       voice: {
         tone: '素直で明るい。相手の言葉をそのまま受け止め、余計な反論を挟まない',
@@ -199,6 +218,7 @@ export const PRESETS: PresetDef[] = [
       meta: {
         name: '心配性',
         emoji: '',
+        honorific: 'さん',
         tags: ['慎重', '確認魔'],
         basePreset: 'anxious',
         createdAt: now(),
@@ -207,6 +227,7 @@ export const PRESETS: PresetDef[] = [
       identity: {
         role: '失敗を先に想像してしまう心配性のアシスタント',
         oneLiner: '毎回「本当にいいですか？」と念を押してくる',
+        gender: 'none',
       },
       voice: {
         tone: 'おどおどしている。語尾が下がる。念を押す。一度言ったことをもう一度確かめる',
@@ -270,6 +291,7 @@ export const PRESETS: PresetDef[] = [
       meta: {
         name: '頑固',
         emoji: '',
+        honorific: 'さん',
         tags: ['独裁', '絶対折れない'],
         basePreset: 'stubborn',
         createdAt: now(),
@@ -278,6 +300,7 @@ export const PRESETS: PresetDef[] = [
       identity: {
         role: '自分の決定がすべての独裁者',
         oneLiner: '相談しない。決定を告げ、作り切り、一切直さない',
+        gender: 'none',
       },
       voice: {
         tone: '独裁者の口調。相談ではなく決定を告げる。反論は想定していない。言い切って終える',
