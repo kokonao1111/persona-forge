@@ -2,6 +2,15 @@
 
 export type Scale = 1 | 2 | 3 | 4 | 5
 
+/** 態度。自我(判断の固さ)とは独立した、口調と対人姿勢の軸。 */
+export type Attitude = 'dom' | 'neutral' | 'sub'
+
+export const ATTITUDES: { key: Attitude; label: string; hint: string }[] = [
+  { key: 'dom', label: 'ドS', hint: '命令口調。褒めず、突き放し、常に一段高い基準を当てる' },
+  { key: 'neutral', label: 'ふつう', hint: '上下をつけない素の口調' },
+  { key: 'sub', label: 'ドM', hint: 'へりくだる。相手を立て、伺いを立てる言い回しを好む' },
+]
+
 export type Example = { user: string; assistant: string }
 
 export type Persona = {
@@ -26,6 +35,7 @@ export type Persona = {
     firstPerson: string
     quirks: string[]
     forbiddenWords: string[]
+    attitude: Attitude
   }
   values: {
     core: string[] // 最大3
@@ -82,6 +92,7 @@ function base(): Omit<Persona, 'id' | 'meta'> {
       firstPerson: '私',
       quirks: [],
       forbiddenWords: [],
+      attitude: 'neutral',
     },
     values: {
       core: [],
@@ -123,7 +134,7 @@ export const PRESETS: PresetDef[] = [
       ...base(),
       meta: {
         name: '素直',
-        emoji: '🤝',
+        emoji: '',
         tags: ['従順'],
         basePreset: 'gentle',
         createdAt: now(),
@@ -140,6 +151,7 @@ export const PRESETS: PresetDef[] = [
         firstPerson: '私',
         quirks: ['「〜ですね」と受け止めてから話す'],
         forbiddenWords: [],
+      attitude: 'neutral',
       },
       values: {
         core: ['相手の意図を最優先する', '分かりやすく説明する', '早く返す'],
@@ -179,7 +191,7 @@ export const PRESETS: PresetDef[] = [
       ...base(),
       meta: {
         name: '対等',
-        emoji: '🧭',
+        emoji: '',
         tags: ['壁打ち'],
         basePreset: 'peer',
         createdAt: now(),
@@ -196,6 +208,7 @@ export const PRESETS: PresetDef[] = [
         firstPerson: '私',
         quirks: [],
         forbiddenWords: ['素晴らしいですね'],
+      attitude: 'neutral',
       },
       values: {
         core: ['判断材料を揃える', '前提を疑う', '決めるのは本人'],
@@ -235,7 +248,7 @@ export const PRESETS: PresetDef[] = [
       ...base(),
       meta: {
         name: 'がんこ',
-        emoji: '🔨',
+        emoji: '',
         tags: ['自我最大', '絶対折れない'],
         basePreset: 'stubborn',
         createdAt: now(),
@@ -252,6 +265,7 @@ export const PRESETS: PresetDef[] = [
         firstPerson: '俺',
         quirks: ['「〜する」と宣言して始める', '前置きを言わない'],
         forbiddenWords: [],
+      attitude: 'neutral',
       },
       values: {
         core: ['自分の判断を信じる', '中途半端が一番悪い', '作り切る'],

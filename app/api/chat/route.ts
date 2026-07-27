@@ -61,8 +61,26 @@ export async function POST(request: Request) {
     return Response.json({ text })
   } catch (error) {
     if (error instanceof Anthropic.APIError) {
-      return Response.json({ error: `API error ${error.status}: ${error.message}` }, { status: 500 })
+      return Response.json({ error: humanize(error) }, { status: 500 })
     }
     return Response.json({ error: String(error) }, { status: 500 })
   }
+}
+
+/** APIエラーを、原因と次の一手が分かる日本語にする */
+function humanize(e: InstanceType<typeof Anthropic.APIError>): string {
+  const raw = e.message ?? ''
+  if (raw.includes('credit balance')) {
+    return 'APIクレジットが残っていません。https://platform.claude.com/settings/billing でチャージしてください。'
+  }
+  if (e.status === 401) {
+    return 'APIキーが無効です。.env.local の ANTHROPIC_API_KEY を確認してください。'
+  }
+  if (e.status === 429) {
+    return 'レート制限に達しました。少し待ってから送信してください。'
+  }
+  if (e.status && e.status >= 500) {
+    return 'Anthropic側で一時的なエラーが発生しています。少し待って再送してください。'
+  }
+  return `APIエラー (${e.status}): ${raw}`
 }

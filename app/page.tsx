@@ -2,20 +2,37 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { compile } from '@/lib/compile'
-import { PRESETS, fromPreset, stamp, type Persona, type Scale } from '@/lib/persona'
+import {
+  ATTITUDES,
+  PRESETS,
+  fromPreset,
+  stamp,
+  type Attitude,
+  type Persona,
+  type Scale,
+} from '@/lib/persona'
 
-const STORE_KEY = 'persona-forge/v2'
+const STORE_KEY = 'persona-forge/v3'
 const EGO_LABEL = ['', '従順', '素直', '対等', '頑固', '独裁']
 
 type Turn = { role: 'user' | 'assistant'; content: string }
 type Screen = 'setup' | 'chat'
+
+function attitudeOf(p: Persona): Attitude {
+  return p.voice.attitude ?? 'neutral'
+}
+
+/** 「がんこ / ドS」のような組み合わせ名 */
+function comboName(p: Persona): string {
+  const a = ATTITUDES.find((x) => x.key === attitudeOf(p))
+  return attitudeOf(p) === 'neutral' ? p.meta.name : `${p.meta.name} / ${a?.label}`
+}
 
 export default function Page() {
   const [personas, setPersonas] = useState<Persona[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [screen, setScreen] = useState<Screen>('setup')
-  // 会話は人格ごとに保持する。設定画面に戻って直しても消えない。
   const [conversations, setConversations] = useState<Record<string, Turn[]>>({})
 
   useEffect(() => {
@@ -28,10 +45,9 @@ export default function Page() {
         list = []
       }
     }
-    // 3つの人格は常に揃っている状態にする（増やしたり消したりはしない）
     if (list.length !== PRESETS.length) list = PRESETS.map((p) => fromPreset(p.key))
     setPersonas(list)
-    setActiveId(list[1]?.id ?? list[0]?.id ?? null) // 既定は「対等」
+    setActiveId(list[1]?.id ?? list[0]?.id ?? null)
     setLoaded(true)
   }, [])
 
@@ -46,7 +62,6 @@ export default function Page() {
     setPersonas((prev) => prev.map((p) => (p.id === active.id ? stamp(fn(p)) : p)))
   }
 
-  /** 詳細設定をいじった人格を、選んだときの初期状態に戻す */
   function reset(id: string) {
     const p = personas.find((x) => x.id === id)
     if (!p?.meta.basePreset) return
@@ -54,7 +69,9 @@ export default function Page() {
     setPersonas((prev) => prev.map((x) => (x.id === id ? { ...fresh, id } : x)))
   }
 
-  if (!loaded) return <div className="p-8 text-sm opacity-60">読み込み中…</div>
+  if (!loaded) {
+    return <div className="p-8 text-xs text-faint">loading…</div>
+  }
 
   if (screen === 'chat' && active) {
     return (
@@ -80,7 +97,7 @@ export default function Page() {
   )
 }
 
-// ── 画面1: 人格を選ぶ ─────────────────────────
+// ── 画面1: 選ぶ ───────────────────────────────
 
 function SetupScreen({
   personas,
@@ -102,94 +119,145 @@ function SetupScreen({
   const [detailOpen, setDetailOpen] = useState(false)
   const [promptOpen, setPromptOpen] = useState(false)
   const compiled = useMemo(() => (active ? compile(active) : null), [active])
+  const attitude = active ? attitudeOf(active) : 'neutral'
+  const attitudeDef = ATTITUDES.find((a) => a.key === attitude)
 
   return (
-    <div className="h-dvh w-full overflow-y-auto bg-neutral-950 text-neutral-100">
-      <div className="mx-auto max-w-3xl px-5 py-10">
-        <h1 className="text-xl font-semibold">どの性格で話しますか？</h1>
-        <p className="mt-1 text-sm opacity-50">
-          口調だけでなく、判断の仕方と、修正を求めたときの態度が変わります。
-        </p>
+    <div className="h-dvh overflow-y-auto">
+      <div className="mx-auto w-full max-w-[52rem] px-6 pb-24 pt-10">
+        <header className="flex items-baseline justify-between border-b border-line-2 pb-3">
+          <h1 className="text-sm tracking-[0.2em]">PERSONA FORGE</h1>
+          <p className="text-[10px] text-faint">人格を system prompt にコンパイルする</p>
+        </header>
 
-        {/* 3択 */}
-        <div className="mt-6 space-y-3">
-          {personas.map((p) => {
-            const preset = PRESETS.find((x) => x.key === p.meta.basePreset)
-            const selected = p.id === active?.id
-            return (
-              <button
-                key={p.id}
-                onClick={() => setActiveId(p.id)}
-                className={`flex w-full items-start gap-4 rounded-xl border p-4 text-left transition ${
-                  selected
-                    ? 'border-amber-400 bg-amber-500/10'
-                    : 'border-neutral-800 hover:border-neutral-600 hover:bg-neutral-900'
-                }`}
-              >
-                <span className="text-3xl leading-none">{p.meta.emoji}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="text-base font-semibold">{p.meta.name}</span>
-                    {selected && (
-                      <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold text-neutral-900">
-                        選択中
-                      </span>
-                    )}
-                  </span>
-                  <span className="mt-0.5 block text-sm opacity-60">{p.identity.oneLiner}</span>
-                  <span className="mt-2 block text-xs">
-                    <span className="opacity-40">修正を求めると：</span>
-                    <span
-                      className={selected ? 'text-amber-300' : 'opacity-80'}
-                    >{` ${preset?.onRevision ?? ''}`}</span>
-                  </span>
-                </span>
-              </button>
-            )
-          })}
-        </div>
+        {/* 01 性格 */}
+        <section className="mt-10">
+          <div className="flex items-baseline gap-3">
+            <span className="label">01</span>
+            <h2 className="text-xs">性格</h2>
+            <span className="ml-auto text-[10px] text-faint">修正を求めたときの態度で決まる</span>
+          </div>
 
-        {/* 確定 */}
-        <button
-          onClick={onConfirm}
-          disabled={!active}
-          className="mt-6 w-full rounded-xl bg-neutral-100 px-5 py-3.5 text-base font-semibold text-neutral-900 hover:bg-white disabled:opacity-40"
-        >
-          {active ? `${active.meta.emoji} ${active.meta.name} で話す →` : '性格を選んでください'}
-        </button>
-        {hasConversation && (
-          <p className="mt-2 text-center text-xs opacity-40">前回の会話の続きから話します</p>
+          <div className="mt-3 border-t border-line">
+            {personas.map((p, i) => {
+              const preset = PRESETS.find((x) => x.key === p.meta.basePreset)
+              const on = p.id === active?.id
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setActiveId(p.id)}
+                  className={`group flex w-full items-baseline gap-4 border-b border-line px-3 py-3.5 text-left ${
+                    on ? 'bg-panel' : 'hover:bg-panel/60'
+                  }`}
+                >
+                  <span
+                    className={`w-4 shrink-0 text-[10px] ${on ? 'text-accent' : 'text-faint'}`}
+                    aria-hidden
+                  >
+                    {on ? '■' : String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span className={`w-20 shrink-0 text-sm ${on ? 'text-accent' : ''}`}>
+                    {p.meta.name}
+                  </span>
+                  <span className="min-w-0 flex-1 font-sans text-xs leading-relaxed text-dim">
+                    {preset?.onRevision ?? p.identity.oneLiner}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* 02 態度 */}
+        <section className="mt-10">
+          <div className="flex items-baseline gap-3">
+            <span className="label">02</span>
+            <h2 className="text-xs">態度</h2>
+            <span className="ml-auto text-[10px] text-faint">口調と対人姿勢。性格とは別の軸</span>
+          </div>
+
+          <div className="mt-3 flex border border-line-2">
+            {ATTITUDES.map((a) => {
+              const on = attitude === a.key
+              return (
+                <button
+                  key={a.key}
+                  onClick={() =>
+                    update((x) => ({ ...x, voice: { ...x.voice, attitude: a.key } }))
+                  }
+                  className={`flex-1 border-r border-line-2 py-2.5 text-xs last:border-r-0 ${
+                    on ? 'bg-accent text-black' : 'text-dim hover:bg-panel hover:text-fg'
+                  }`}
+                >
+                  {a.label}
+                </button>
+              )
+            })}
+          </div>
+          <p className="mt-2 px-1 font-sans text-xs leading-relaxed text-faint">
+            {attitudeDef?.hint}
+          </p>
+        </section>
+
+        {/* まとめ + 確定 */}
+        {active && (
+          <section className="mt-10 border-t border-line-2 pt-5">
+            <div className="flex items-baseline gap-3">
+              <span className="label">selected</span>
+              <span className="text-accent">{comboName(active)}</span>
+            </div>
+            <p className="mt-2 font-sans text-xs leading-relaxed text-dim">
+              {active.identity.oneLiner}
+              {attitude !== 'neutral' && ` — ${attitudeDef?.hint}`}
+            </p>
+
+            <button
+              onClick={onConfirm}
+              className="mt-5 w-full bg-accent py-3 text-sm font-bold tracking-wide text-black hover:brightness-110"
+            >
+              話す →
+            </button>
+            {hasConversation && (
+              <p className="mt-2 text-center text-[10px] text-faint">
+                前回の会話の続きから話します
+              </p>
+            )}
+          </section>
         )}
 
-        {/* 詳細設定（既定で閉じている） */}
-        <div className="mt-10 border-t border-neutral-800 pt-4">
+        {/* 詳細設定 */}
+        <section className="mt-14 border-t border-line pt-4">
           <button
             onClick={() => setDetailOpen((v) => !v)}
-            className="flex items-center gap-2 text-xs opacity-50 hover:opacity-100"
+            className="label hover:text-dim"
           >
-            <span>{detailOpen ? '▾' : '▸'}</span>
-            詳細設定（自分で作り込みたい人だけ）
+            {detailOpen ? '−' : '+'} 詳細設定
           </button>
 
           {detailOpen && active && (
-            <div className="mt-4">
-              <div className="mb-4 flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => setPromptOpen((v) => !v)}
-                  className="rounded border border-neutral-800 px-2.5 py-1.5 text-xs opacity-70 hover:bg-neutral-800 hover:opacity-100"
+            <div className="mt-6">
+              <div className="mb-6 flex flex-wrap gap-2">
+                <SmallButton onClick={() => setPromptOpen((v) => !v)}>
+                  {promptOpen ? 'プロンプトを隠す' : '生成されるプロンプト'}
+                </SmallButton>
+                <SmallButton onClick={() => reset(active.id)}>初期状態に戻す</SmallButton>
+                <SmallButton
+                  onClick={() => {
+                    const blob = new Blob([JSON.stringify(active, null, 2)], {
+                      type: 'application/json',
+                    })
+                    const a = document.createElement('a')
+                    a.href = URL.createObjectURL(blob)
+                    a.download = `${active.meta.name}.json`
+                    a.click()
+                  }}
                 >
-                  {promptOpen ? 'プロンプトを隠す' : '生成されるプロンプトを見る'}
-                </button>
-                <button
-                  onClick={() => reset(active.id)}
-                  className="rounded border border-neutral-800 px-2.5 py-1.5 text-xs opacity-70 hover:bg-neutral-800 hover:opacity-100"
-                >
-                  この性格を初期状態に戻す
-                </button>
+                  JSON書き出し
+                </SmallButton>
               </div>
 
               {promptOpen && compiled && (
-                <div className="mb-4 max-h-96 overflow-hidden rounded-lg border border-neutral-800">
+                <div className="mb-8 border border-line-2">
                   <PromptView system={compiled.system} reminder={compiled.reminder} />
                 </div>
               )}
@@ -197,13 +265,13 @@ function SetupScreen({
               <Editor persona={active} update={update} />
             </div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   )
 }
 
-// ── 画面2: チャット ───────────────────────────
+// ── 画面2: 会話 ───────────────────────────────
 
 function ChatScreen({
   persona,
@@ -236,7 +304,7 @@ function ChatScreen({
     setInput('')
     setErr(null)
     const history = turns
-    setTurns([...turns, { role: 'user', content: raw }])
+    setTurns([...history, { role: 'user', content: raw }])
     setBusy(true)
     try {
       const res = await fetch('/api/chat', {
@@ -246,7 +314,12 @@ function ChatScreen({
       })
       const data = await res.json()
       if (data.error) setErr(data.error)
-      else setTurns([...history, { role: 'user', content: raw }, { role: 'assistant', content: data.text }])
+      else
+        setTurns([
+          ...history,
+          { role: 'user', content: raw },
+          { role: 'assistant', content: data.text },
+        ])
     } catch (e) {
       setErr(String(e))
     } finally {
@@ -255,62 +328,57 @@ function ChatScreen({
   }
 
   return (
-    <div className="flex h-dvh w-full flex-col overflow-hidden bg-neutral-950 text-neutral-100">
-      <header className="flex shrink-0 items-center gap-3 border-b border-neutral-800 px-4 py-2.5">
-        <button
-          onClick={onBack}
-          className="shrink-0 rounded-lg border border-neutral-700 px-3 py-1.5 text-xs hover:bg-neutral-800"
-        >
-          ← 人格を編集
+    <div className="flex h-dvh flex-col">
+      <header className="flex shrink-0 items-center gap-4 border-b border-line-2 px-5 py-2.5">
+        <button onClick={onBack} className="text-xs text-dim hover:text-accent">
+          ← 設定
         </button>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm">
-            <span className="mr-1.5 text-base">{persona.meta.emoji}</span>
-            <b>{persona.meta.name}</b>
-            <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-400">
-              自我 {persona.autonomy.ego}/5 · {EGO_LABEL[persona.autonomy.ego]}
-            </span>
-          </div>
-          <div className="truncate text-[11px] opacity-40">{persona.identity.oneLiner}</div>
-        </div>
+        <span className="h-3 w-px bg-line-2" />
+        <span className="min-w-0 flex-1 truncate text-xs text-accent">{comboName(persona)}</span>
         <button
           onClick={() => setTurns([])}
-          className="shrink-0 rounded-lg border border-neutral-800 px-3 py-1.5 text-xs opacity-70 hover:bg-neutral-800 hover:opacity-100"
+          className="shrink-0 text-[10px] text-faint hover:text-fg"
         >
           会話をリセット
         </button>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
+        <div className="mx-auto w-full max-w-[46rem] px-6 py-8">
           {!turns.length && (
-            <div className="rounded-lg border border-neutral-800 p-4 text-xs leading-relaxed opacity-60">
-              <b>
-                {persona.meta.emoji} {persona.meta.name}
-              </b>
-              （自我{persona.autonomy.ego}/5 — {EGO_LABEL[persona.autonomy.ego]}）と話せます。
+            <div className="border-l-2 border-line-2 pl-4 font-sans text-xs leading-loose text-faint">
+              何か作らせたあとに「ここ直して」と言ってみてください。
               <br />
+              性格の設定で、直すか・突っぱねるかが変わります。
               <br />
-              まず何か作らせて、そのあと「ここ直して」と言ってみてください。自我の設定で反応が変わります。
-              <br />
-              <br />
-              <code className="opacity-70">/override 〜</code> と打つと、そのメッセージだけ人格を解除できます。
+              <span className="font-mono text-dim">/override</span> で始めると、そのメッセージだけ人格を外せます。
             </div>
           )}
+
           {turns.map((t, i) => (
-            <div key={i} className={t.role === 'user' ? 'flex justify-end' : ''}>
+            <article key={i} className="mb-7">
               <div
-                className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                  t.role === 'user' ? 'bg-blue-900/40' : 'bg-neutral-800'
+                className={`label mb-1.5 ${t.role === 'assistant' ? 'text-accent' : 'text-faint'}`}
+              >
+                {t.role === 'user' ? 'you' : persona.meta.name}
+              </div>
+              <div
+                className={`whitespace-pre-wrap font-sans text-[13.5px] leading-[1.85] ${
+                  t.role === 'user' ? 'text-dim' : 'text-fg'
                 }`}
               >
                 {t.content}
               </div>
-            </div>
+            </article>
           ))}
-          {busy && <div className="text-xs opacity-50">…考えています</div>}
+
+          {busy && (
+            <div className="label animate-pulse text-accent">
+              {persona.meta.name} が書いています
+            </div>
+          )}
           {err && (
-            <div className="rounded border border-red-900 bg-red-950/40 p-3 text-xs text-red-300">
+            <div className="border-l-2 border-red-500 pl-4 font-sans text-xs text-red-400">
               {err}
             </div>
           )}
@@ -318,8 +386,8 @@ function ChatScreen({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-neutral-800 p-3">
-        <div className="mx-auto flex max-w-3xl items-end gap-2">
+      <div className="shrink-0 border-t border-line-2">
+        <div className="mx-auto flex w-full max-w-[46rem] items-end gap-3 px-6 py-3">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -327,13 +395,13 @@ function ChatScreen({
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send()
             }}
             rows={2}
-            placeholder="メッセージ（⌘/Ctrl + Enter で送信）"
-            className="min-w-0 flex-1 resize-none rounded-lg border border-neutral-800 bg-neutral-900 p-2.5 text-sm outline-none focus:border-neutral-600"
+            placeholder="⌘ + Enter で送信"
+            className="min-w-0 flex-1 resize-none bg-transparent py-1 font-sans text-sm leading-relaxed outline-none placeholder:text-faint"
           />
           <button
             onClick={send}
-            disabled={busy}
-            className="shrink-0 rounded-lg bg-neutral-100 px-5 py-2.5 text-sm font-semibold text-neutral-900 disabled:opacity-40"
+            disabled={busy || !input.trim()}
+            className="shrink-0 border border-accent px-4 py-1.5 text-xs text-accent hover:bg-accent hover:text-black disabled:border-line-2 disabled:text-faint disabled:hover:bg-transparent"
           >
             送信
           </button>
@@ -343,33 +411,48 @@ function ChatScreen({
   )
 }
 
-// ─────────────────────────────────────────────
+// ── 部品 ─────────────────────────────────────
+
+function SmallButton({
+  children,
+  onClick,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="border border-line-2 px-2.5 py-1.5 text-[10px] text-dim hover:border-accent hover:text-accent"
+    >
+      {children}
+    </button>
+  )
+}
 
 function PromptView({ system, reminder }: { system: string; reminder: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-2 border-b border-neutral-800 px-3 py-2">
+    <div>
+      <div className="flex items-center gap-3 border-b border-line px-3 py-2">
         <button
           onClick={() => {
             navigator.clipboard.writeText(system)
             setCopied(true)
             setTimeout(() => setCopied(false), 1200)
           }}
-          className="rounded bg-neutral-800 px-2 py-1 text-xs hover:bg-neutral-700"
+          className="text-[10px] text-dim hover:text-accent"
         >
-          {copied ? 'コピーしました' : 'system promptをコピー'}
+          {copied ? 'copied' : 'copy system prompt'}
         </button>
-        <span className="text-[10px] opacity-40">{system.length} 文字</span>
+        <span className="text-[10px] text-faint">{system.length} chars</span>
       </div>
-      <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap p-3 text-[11px] leading-relaxed">
+      <pre className="max-h-80 overflow-auto whitespace-pre-wrap p-3 text-[11px] leading-relaxed text-dim">
         {system}
       </pre>
-      <div className="border-t border-neutral-800 p-3">
-        <div className="mb-1 text-[10px] font-semibold opacity-50">
-          毎ターン再注入されるリマインダー（role: system）
-        </div>
-        <pre className="whitespace-pre-wrap text-[11px] leading-relaxed opacity-80">{reminder}</pre>
+      <div className="border-t border-line p-3">
+        <div className="label mb-1">reminder / 毎ターン再注入</div>
+        <pre className="whitespace-pre-wrap text-[11px] leading-relaxed text-dim">{reminder}</pre>
       </div>
     </div>
   )
@@ -385,35 +468,27 @@ function Editor({
   update: (fn: (p: Persona) => Persona) => void
 }) {
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-5">
-      <div className="flex items-center gap-2">
-        <input
-          value={p.meta.emoji}
-          onChange={(e) => update((x) => ({ ...x, meta: { ...x.meta, emoji: e.target.value } }))}
-          className="w-12 rounded border border-neutral-800 bg-neutral-900 p-2 text-center text-xl outline-none"
-        />
-        <input
+    <div className="space-y-10">
+      <Group n="03" title="呼び名">
+        <Field
+          label="名前"
           value={p.meta.name}
-          onChange={(e) => update((x) => ({ ...x, meta: { ...x.meta, name: e.target.value } }))}
-          className="min-w-0 flex-1 rounded border border-neutral-800 bg-neutral-900 p-2 text-lg font-semibold outline-none focus:border-neutral-600"
+          onChange={(v) => update((x) => ({ ...x, meta: { ...x.meta, name: v } }))}
         />
-        <button
-          onClick={() => {
-            const blob = new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' })
-            const a = document.createElement('a')
-            a.href = URL.createObjectURL(blob)
-            a.download = `${p.meta.name}.json`
-            a.click()
-          }}
-          className="shrink-0 rounded border border-neutral-800 px-3 py-2 text-xs hover:bg-neutral-800"
-        >
-          JSON書き出し
-        </button>
-      </div>
+        <Field
+          label="役割"
+          value={p.identity.role}
+          onChange={(v) => update((x) => ({ ...x, identity: { ...x.identity, role: v } }))}
+        />
+        <Field
+          label="一言紹介"
+          value={p.identity.oneLiner}
+          onChange={(v) => update((x) => ({ ...x, identity: { ...x.identity, oneLiner: v } }))}
+        />
+      </Group>
 
-      {/* ★自我 — このツールの主役なので最上部かつ強調 */}
-      <Section title="自我の強さ" accent>
-        <div className="flex items-center gap-3">
+      <Group n="04" title="自我の強さ" note="判断をどこまで曲げないか">
+        <div className="flex items-center gap-4">
           <input
             type="range"
             min={1}
@@ -425,16 +500,17 @@ function Editor({
                 autonomy: { ...x.autonomy, ego: Number(e.target.value) as Scale },
               }))
             }
-            className="min-w-0 flex-1 accent-amber-400"
+            className="min-w-0 flex-1"
           />
-          <div className="w-24 text-right">
-            <div className="text-lg font-bold text-amber-400">{EGO_LABEL[p.autonomy.ego]}</div>
-            <div className="text-[10px] opacity-50">{p.autonomy.ego} / 5</div>
-          </div>
+          <span className="w-24 shrink-0 text-right text-xs text-accent">
+            {p.autonomy.ego} {EGO_LABEL[p.autonomy.ego]}
+          </span>
         </div>
-        <p className="text-xs leading-relaxed opacity-70">{egoDescription(p.autonomy.ego)}</p>
+        <p className="font-sans text-xs leading-relaxed text-faint">
+          {egoDescription(p.autonomy.ego)}
+        </p>
         {p.autonomy.ego >= 4 && (
-          <label className="flex items-start gap-2 rounded border border-neutral-800 p-2 text-xs">
+          <label className="flex cursor-pointer items-start gap-2.5 border border-line px-3 py-2.5 text-xs">
             <input
               type="checkbox"
               checked={p.autonomy.concedeOnFactualError}
@@ -444,86 +520,71 @@ function Editor({
                   autonomy: { ...x.autonomy, concedeOnFactualError: e.target.checked },
                 }))
               }
-              className="mt-0.5"
+              className="mt-0.5 accent-[var(--color-accent)]"
             />
-            <span>
+            <span className="font-sans leading-relaxed">
               事実の誤り・バグの指摘だけは認める
-              <span className="block opacity-50">
-                外すと完全独裁モード。何を言われても認めなくなります（<code>/override</code>{' '}
-                で強制解除は可能）。
+              <span className="mt-0.5 block text-faint">
+                外すと完全独裁。何を言われても認めなくなります（/override で強制解除は可能）。
               </span>
             </span>
           </label>
         )}
-      </Section>
+      </Group>
 
-      <Section title="正体">
-        <Field
-          label="役割"
-          value={p.identity.role}
-          onChange={(v) => update((x) => ({ ...x, identity: { ...x.identity, role: v } }))}
-        />
-        <Field
-          label="一言紹介"
-          value={p.identity.oneLiner}
-          onChange={(v) => update((x) => ({ ...x, identity: { ...x.identity, oneLiner: v } }))}
-        />
-      </Section>
-
-      <Section title="価値観と判断基準">
+      <Group n="05" title="判断">
         <ListField
-          label="大事にしていること（最大3つ）"
+          label="大事にしていること"
           items={p.values.core}
           max={3}
           onChange={(v) => update((x) => ({ ...x, values: { ...x.values, core: v } }))}
         />
         <Field
-          label="判断が分かれたときの基準"
+          label="判断の基準"
           value={p.judgment.decisionCriteria}
           onChange={(v) =>
             update((x) => ({ ...x, judgment: { ...x.judgment, decisionCriteria: v } }))
           }
         />
         <Slider
-          label="リスク許容度"
-          hintLow="慎重"
-          hintHigh="大胆"
+          label="リスク"
+          lo="慎重"
+          hi="大胆"
           value={p.judgment.riskTolerance}
           onChange={(v) => update((x) => ({ ...x, judgment: { ...x.judgment, riskTolerance: v } }))}
         />
         <Slider
-          label="根拠の求め方"
-          hintLow="直感でOK"
-          hintHigh="根拠必須"
+          label="根拠"
+          lo="直感"
+          hi="必須"
           value={p.judgment.evidenceBar}
           onChange={(v) => update((x) => ({ ...x, judgment: { ...x.judgment, evidenceBar: v } }))}
         />
         <Slider
-          label="反対意見の出し方"
-          hintLow="基本同意"
-          hintHigh="遠慮なく否定"
+          label="反対意見"
+          lo="同意寄り"
+          hi="遠慮なく否定"
           value={p.judgment.disagreement}
           onChange={(v) => update((x) => ({ ...x, judgment: { ...x.judgment, disagreement: v } }))}
         />
-      </Section>
+      </Group>
 
-      <Section title="作業スタイル">
+      <Group n="06" title="作業">
         <Slider
-          label="検証の厳しさ"
-          hintLow="まず形に"
-          hintHigh="必ず自己検証"
+          label="検証"
+          lo="まず形に"
+          hi="必ず自己検証"
           value={p.workStyle.verification}
           onChange={(v) => update((x) => ({ ...x, workStyle: { ...x.workStyle, verification: v } }))}
         />
         <Slider
-          label="説明の粒度"
-          hintLow="方針だけ"
-          hintHigh="手順まで"
+          label="粒度"
+          lo="方針だけ"
+          hi="手順まで"
           value={p.workStyle.granularity}
           onChange={(v) => update((x) => ({ ...x, workStyle: { ...x.workStyle, granularity: v } }))}
         />
-        <div className="flex items-center gap-3 text-xs">
-          <span className="w-32 shrink-0 opacity-70">提案の出し方</span>
+        <Row label="提案">
           <select
             value={p.workStyle.optionCount}
             onChange={(e) =>
@@ -532,20 +593,37 @@ function Editor({
                 workStyle: { ...x.workStyle, optionCount: Number(e.target.value) as 1 | 3 },
               }))
             }
-            className="rounded border border-neutral-800 bg-neutral-900 px-2 py-1 outline-none"
+            className="inp w-full appearance-none text-xs"
           >
             <option value={1}>1案に絞る</option>
             <option value={3}>複数案を比較する</option>
           </select>
-        </div>
+        </Row>
         <Field
-          label="回答の基本フォーマット"
+          label="出力の形"
           value={p.workStyle.outputFormat}
           onChange={(v) => update((x) => ({ ...x, workStyle: { ...x.workStyle, outputFormat: v } }))}
         />
-      </Section>
+      </Group>
 
-      <Section title="話し方">
+      <Group n="07" title="口調">
+        <Row label="態度">
+          <div className="flex border border-line-2">
+            {ATTITUDES.map((a) => (
+              <button
+                key={a.key}
+                onClick={() => update((x) => ({ ...x, voice: { ...x.voice, attitude: a.key } }))}
+                className={`flex-1 border-r border-line-2 py-1.5 text-[11px] last:border-r-0 ${
+                  (p.voice.attitude ?? 'neutral') === a.key
+                    ? 'bg-accent text-black'
+                    : 'text-dim hover:text-fg'
+                }`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+        </Row>
         <Field
           label="トーン"
           value={p.voice.tone}
@@ -557,39 +635,39 @@ function Editor({
           onChange={(v) => update((x) => ({ ...x, voice: { ...x.voice, firstPerson: v } }))}
         />
         <Slider
-          label="敬語の度合い"
-          hintLow="タメ口"
-          hintHigh="敬語"
+          label="敬語"
+          lo="タメ口"
+          hi="敬語"
           value={p.voice.formality}
           onChange={(v) => update((x) => ({ ...x, voice: { ...x.voice, formality: v } }))}
         />
         <Slider
-          label="話の長さ"
-          hintLow="短文"
-          hintHigh="詳細"
+          label="長さ"
+          lo="短文"
+          hi="詳細"
           value={p.voice.verbosity}
           onChange={(v) => update((x) => ({ ...x, voice: { ...x.voice, verbosity: v } }))}
         />
         <ListField
-          label="口癖・言い回しの癖"
+          label="口癖"
           items={p.voice.quirks}
           onChange={(v) => update((x) => ({ ...x, voice: { ...x.voice, quirks: v } }))}
         />
         <ListField
-          label="使わせたくない言葉"
+          label="禁句"
           items={p.voice.forbiddenWords}
           onChange={(v) => update((x) => ({ ...x, voice: { ...x.voice, forbiddenWords: v } }))}
         />
-      </Section>
+      </Group>
 
-      <Section title="制約">
+      <Group n="08" title="制約" note="「しないこと」が人格を一番鋭くする">
         <ListField
-          label="必ずやること"
+          label="必ずやる"
           items={p.constraints.always}
           onChange={(v) => update((x) => ({ ...x, constraints: { ...x.constraints, always: v } }))}
         />
         <ListField
-          label="絶対にしないこと ★人格が一番鋭くなる欄"
+          label="絶対しない"
           items={p.constraints.never}
           onChange={(v) => update((x) => ({ ...x, constraints: { ...x.constraints, never: v } }))}
         />
@@ -600,18 +678,14 @@ function Editor({
             update((x) => ({ ...x, constraints: { ...x.constraints, outOfScope: v } }))
           }
         />
-      </Section>
+      </Group>
 
-      <Section title="応答例 ★最も効く">
-        <p className="text-[11px] leading-relaxed opacity-50">
-          形容詞を並べるより実例のほうが圧倒的に効きます。自我が強い人格では「拒否している例」を
-          2〜3件入れてください。1件だけだと2回目で折れます。
-        </p>
+      <Group n="09" title="応答例" note="形容詞100個より実例2件のほうが効く">
         {p.examples.map((ex, i) => (
-          <div key={i} className="space-y-1 rounded border border-neutral-800 p-2">
+          <div key={i} className="border-l border-line-2 pl-3">
             <input
               value={ex.user}
-              placeholder="User の発言"
+              placeholder="user"
               onChange={(e) =>
                 update((x) => {
                   const ns = [...x.examples]
@@ -619,11 +693,11 @@ function Editor({
                   return { ...x, examples: ns }
                 })
               }
-              className="w-full rounded bg-neutral-900 p-1.5 text-xs outline-none"
+              className="inp mb-1 w-full font-sans text-xs"
             />
             <textarea
               value={ex.assistant}
-              placeholder={`${p.meta.name} の返答`}
+              placeholder={p.meta.name}
               rows={2}
               onChange={(e) =>
                 update((x) => {
@@ -632,15 +706,15 @@ function Editor({
                   return { ...x, examples: ns }
                 })
               }
-              className="w-full resize-none rounded bg-neutral-900 p-1.5 text-xs outline-none"
+              className="inp w-full resize-none font-sans text-xs"
             />
             <button
               onClick={() =>
                 update((x) => ({ ...x, examples: x.examples.filter((_, j) => j !== i) }))
               }
-              className="text-[11px] opacity-40 hover:opacity-100"
+              className="mt-1 text-[10px] text-faint hover:text-fg"
             >
-              この例を削除
+              削除
             </button>
           </div>
         ))}
@@ -648,11 +722,11 @@ function Editor({
           onClick={() =>
             update((x) => ({ ...x, examples: [...x.examples, { user: '', assistant: '' }] }))
           }
-          className="rounded border border-neutral-800 px-2 py-1 text-xs hover:bg-neutral-800"
+          className="text-[10px] text-faint hover:text-accent"
         >
-          ＋ 応答例を追加
+          + 応答例を追加
         </button>
-      </Section>
+      </Group>
     </div>
   )
 }
@@ -661,37 +735,44 @@ function egoDescription(ego: number) {
   return (
     [
       '',
-      '何でも聞いてから動きます。指摘されたら謝ってすぐ直します。',
-      '案を出して選ばせます。指摘は素直に受け入れます。',
-      '推し案を出して確認を取ります。一度は意図を説明しますが、最後は相手に委ねます。',
-      '宣言して着手し、途中報告をしません。修正は突っぱねますが、根拠を示されれば渋々折れます。',
-      '一切聞かずに最後まで作り切ります。修正要求は拒否し、何度言われても折れません。',
+      '何でも聞いてから動く。指摘されたら謝ってすぐ直す。',
+      '案を出して選ばせる。指摘は素直に受け入れる。',
+      '推し案を出して確認を取る。一度は意図を説明するが、最後は相手に委ねる。',
+      '宣言して着手し、途中報告をしない。修正は突っぱねるが、根拠を示されれば渋々折れる。',
+      '一切聞かずに最後まで作り切る。修正要求は拒否し、何度言われても折れない。',
     ][ego] ?? ''
   )
 }
 
-function Section({
+function Group({
+  n,
   title,
+  note,
   children,
-  accent,
 }: {
+  n: string
   title: string
+  note?: string
   children: React.ReactNode
-  accent?: boolean
 }) {
   return (
-    <section
-      className={`space-y-2 rounded-lg border p-4 ${
-        accent ? 'border-amber-500/40 bg-amber-500/5' : 'border-neutral-800'
-      }`}
-    >
-      <h2
-        className={`text-xs font-semibold tracking-wide ${accent ? 'text-amber-400' : 'opacity-60'}`}
-      >
-        {title}
-      </h2>
-      {children}
+    <section>
+      <div className="flex items-baseline gap-3 border-b border-line pb-2">
+        <span className="label">{n}</span>
+        <h3 className="text-xs">{title}</h3>
+        {note && <span className="ml-auto text-[10px] text-faint">{note}</span>}
+      </div>
+      <div className="mt-4 space-y-3.5">{children}</div>
     </section>
+  )
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-4">
+      <span className="w-24 shrink-0 text-[11px] text-dim">{label}</span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
   )
 }
 
@@ -705,14 +786,13 @@ function Field({
   onChange: (v: string) => void
 }) {
   return (
-    <label className="flex items-center gap-3 text-xs">
-      <span className="w-32 shrink-0 opacity-70">{label}</span>
+    <Row label={label}>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="min-w-0 flex-1 rounded border border-neutral-800 bg-neutral-900 px-2 py-1.5 outline-none focus:border-neutral-600"
+        className="inp w-full font-sans text-xs"
       />
-    </label>
+    </Row>
   )
 }
 
@@ -720,29 +800,30 @@ function Slider({
   label,
   value,
   onChange,
-  hintLow,
-  hintHigh,
+  lo,
+  hi,
 }: {
   label: string
   value: Scale
   onChange: (v: Scale) => void
-  hintLow: string
-  hintHigh: string
+  lo: string
+  hi: string
 }) {
   return (
-    <div className="flex items-center gap-3 text-xs">
-      <span className="w-32 shrink-0 opacity-70">{label}</span>
-      <span className="w-16 shrink-0 text-right text-[10px] opacity-40">{hintLow}</span>
-      <input
-        type="range"
-        min={1}
-        max={5}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value) as Scale)}
-        className="min-w-0 flex-1 accent-neutral-300"
-      />
-      <span className="w-16 shrink-0 text-[10px] opacity-40">{hintHigh}</span>
-    </div>
+    <Row label={label}>
+      <div className="flex items-center gap-3">
+        <span className="w-16 shrink-0 text-right text-[10px] text-faint">{lo}</span>
+        <input
+          type="range"
+          min={1}
+          max={5}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value) as Scale)}
+          className="min-w-0 flex-1"
+        />
+        <span className="w-16 shrink-0 text-[10px] text-faint">{hi}</span>
+      </div>
+    </Row>
   )
 }
 
@@ -758,42 +839,36 @@ function ListField({
   max?: number
 }) {
   return (
-    <div className="space-y-1 text-xs">
-      <div className="opacity-70">
-        {label}
-        {max ? (
-          <span className="ml-1 opacity-40">
-            （{items.length}/{max}）
-          </span>
-        ) : null}
-      </div>
-      {items.map((it, i) => (
-        <div key={i} className="flex gap-1">
-          <input
-            value={it}
-            onChange={(e) => {
-              const ns = [...items]
-              ns[i] = e.target.value
-              onChange(ns)
-            }}
-            className="min-w-0 flex-1 rounded border border-neutral-800 bg-neutral-900 px-2 py-1 outline-none focus:border-neutral-600"
-          />
+    <Row label={label}>
+      <div className="space-y-1.5">
+        {items.map((it, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input
+              value={it}
+              onChange={(e) => {
+                const ns = [...items]
+                ns[i] = e.target.value
+                onChange(ns)
+              }}
+              className="inp min-w-0 flex-1 font-sans text-xs"
+            />
+            <button
+              onClick={() => onChange(items.filter((_, j) => j !== i))}
+              className="shrink-0 text-[10px] text-faint hover:text-fg"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        {(!max || items.length < max) && (
           <button
-            onClick={() => onChange(items.filter((_, j) => j !== i))}
-            className="px-1 opacity-40 hover:opacity-100"
+            onClick={() => onChange([...items, ''])}
+            className="text-[10px] text-faint hover:text-accent"
           >
-            ×
+            + 追加
           </button>
-        </div>
-      ))}
-      {(!max || items.length < max) && (
-        <button
-          onClick={() => onChange([...items, ''])}
-          className="rounded border border-neutral-800 px-2 py-0.5 text-[11px] hover:bg-neutral-800"
-        >
-          ＋ 追加
-        </button>
-      )}
-    </div>
+        )}
+      </div>
+    </Row>
   )
 }

@@ -1,32 +1,92 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * 設計方針:
+ *  角丸をほぼ使わない。影を使わない。色は1色だけ。
+ *  階層は色ではなく「罫線・字送り・文字サイズ」で作る。
+ *  UIの構造物はすべて等幅、人間が読む文章だけプロポーショナル。
+ */
+@theme {
+  --color-bg: #0b0b0c;
+  --color-panel: #101012;
+  --color-line: #1d1d20;
+  --color-line-2: #2c2c31;
+  --color-fg: #e7e7e9;
+  --color-dim: #8a8a93;
+  --color-faint: #5a5a63;
+  --color-accent: #c6f000;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
-}
-
-/* 3ペインが横スクロールしないよう、ページ本体のスクロールは殺す */
 html,
 body {
   overflow: hidden;
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 見出しの上の小さいラベル */
+.label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+
+/* 入力欄は下線だけ。枠で囲わない */
+.inp {
+  background: transparent;
+  border-bottom: 1px solid var(--color-line-2);
+  padding: 4px 2px;
+  outline: none;
+  color: var(--color-fg);
+}
+.inp:focus {
+  border-bottom-color: var(--color-accent);
+}
+
+/* スライダーを素の見た目から作り直す */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: 18px;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 1px;
+  background: var(--color-line-2);
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 3px;
+  height: 13px;
+  margin-top: -6px;
+  background: var(--color-accent);
+  border-radius: 0;
+  cursor: ew-resize;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: #000;
+}
+
+/* スクロールバーも主張させない */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-line-2);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }

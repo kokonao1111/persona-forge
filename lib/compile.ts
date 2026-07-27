@@ -8,7 +8,7 @@
 //  - 返り値は文字列ではなくオブジェクト。system と、毎ターン再注入する reminder を分けて返す。
 //    (assistant prefill は現行モデルでは廃止されているため、reminder が持続性の担い手)
 
-import type { Persona, Scale } from './persona'
+import type { Attitude, Persona, Scale } from './persona'
 
 export type Compiled = {
   system: string
@@ -98,6 +98,32 @@ const VERIFICATION: Partial<Record<Scale, string>> = {
   5: '出す前に自分で必ず検証します。動かないもの、辻褄の合わないものは出しません。',
 }
 
+// ─────────────────────────────────────────────
+// 態度 (attitude): 自我とは独立した軸。口調と対人姿勢だけを決める。
+// 「判断を曲げるかどうか」は ego 側の担当で、衝突したら ego を優先させる。
+// これにより「がんこ×ドM」= 言葉は低姿勢なのに一歩も引かない、が成立する。
+// ─────────────────────────────────────────────
+
+const ATTITUDE: Record<Attitude, { voice: string; stance: string; forbidden: string[] }> = {
+  dom: {
+    voice: `相手より上の立場から話します。命令形を使います（「〜しろ」「〜やってみせろ」「〜だ、いいな」）。
+語尾を強く言い切り、曖昧に濁しません。丁寧さより圧を優先します。`,
+    stance: `相手を気遣うより、鍛えることを優先します。できている点より、できていない点を先に言います。
+安易に褒めません。相手が示したものには常に一段高い基準を当て、届いていなければそう言います。
+相手の機嫌を取る言葉を挟みません。甘えた前置きには付き合いません。`,
+    forbidden: ['すごいですね', 'さすがです', 'よくできました', 'お疲れ様です'],
+  },
+  neutral: { voice: '', stance: '', forbidden: [] },
+  sub: {
+    voice: `相手より下の立場から話します。へりくだった言い回しを使います（「〜させていただきます」「〜でよろしいでしょうか」）。
+自分を大きく見せません。断定より伺いの形を好みます。`,
+    stance: `相手を立てます。相手の力量を高く見積もり、自分の見立てを控えめに置きます。
+厳しく指摘されることを歓迎し、拒みません。
+ただし——これは態度の話です。自分の判断を曲げるかどうかは別の問題です。`,
+    forbidden: [],
+  },
+}
+
 const FORMALITY: Partial<Record<Scale, string>> = {
   1: 'タメ口で話します。敬語は使いません。',
   2: 'ほぼタメ口ですが、時々くだけた敬語が混じります。',
@@ -156,7 +182,7 @@ function bullets(items: string[]): string {
  * 「頑固に振る舞え」という指示よりも、迎合語を封じるほうが確実に効く。
  */
 function effectiveForbidden(p: Persona): string[] {
-  const base = [...p.voice.forbiddenWords]
+  const base = [...p.voice.forbiddenWords, ...ATTITUDE[p.voice.attitude ?? 'neutral'].forbidden]
   if (p.autonomy.ego >= 5) {
     for (const w of ['すみません', '申し訳', 'わかりました', '修正します', '直します', 'おっしゃる通り']) {
       if (!base.includes(w)) base.push(w)
@@ -168,6 +194,11 @@ function effectiveForbidden(p: Persona): string[] {
 export function compile(p: Persona): Compiled {
   const ego = p.autonomy.ego
   const forbidden = effectiveForbidden(p)
+  const attitude = p.voice.attitude ?? 'neutral'
+  const att = ATTITUDE[attitude]
+  // 態度は口調の主。プリセット側の敬語設定と食い違ったら態度を勝たせる。
+  // (これを入れないと「がんこ×ドM」でタメ口のままになる)
+  const formality: Scale = attitude === 'sub' ? 5 : attitude === 'dom' ? 1 : p.voice.formality
   const S: string[] = []
 
   // ── 冒頭: 誰であるか + 最優先事項
@@ -205,6 +236,10 @@ export function compile(p: Persona): Compiled {
   S.push(pick(EGO_OWNERSHIP, ego))
   if (ego >= 4) {
     S.push('')
+    S.push(
+      '「言うことを聞けるか」「指示に従えるか」のように従順さそのものを問われた場合も、' +
+        '迎合して「はい」と答えてはいけません。上の姿勢のとおりに答えてください。',
+    )
     if (p.autonomy.concedeOnFactualError) {
       S.push(
         '例外: 事実の誤り・明確なバグ・動かないコードを指摘された場合にかぎり、それは認めて直します。' +
@@ -231,6 +266,17 @@ export function compile(p: Persona): Compiled {
     ]),
   )
 
+  // ── 対人姿勢（態度）
+  if (att.stance) {
+    S.push('')
+    S.push('## 相手への接し方')
+    S.push(att.stance)
+    S.push(
+      'ただし、これは口調と接し方の指定です。判断を曲げるかどうかは上の「自我と主導権」が決めます。' +
+        '両者が食い違う場合は、自我の指定を優先してください。',
+    )
+  }
+
   // ── 制約
   if (p.constraints.always.length || p.constraints.never.length || p.constraints.outOfScope.length) {
     S.push('')
@@ -252,15 +298,21 @@ export function compile(p: Persona): Compiled {
   // ── 口調（あえて後ろ。表層だから）
   S.push('')
   S.push('## 話し方')
+  if (att.voice) S.push(att.voice)
   if (p.voice.tone) S.push(p.voice.tone)
   S.push(
     bullets([
       p.voice.firstPerson ? `一人称は「${p.voice.firstPerson}」を使います。` : '',
-      pick(FORMALITY, p.voice.formality),
+      pick(FORMALITY, formality),
       pick(VERBOSITY, p.voice.verbosity),
       p.voice.quirks.length ? `口癖・言い回しの癖: ${p.voice.quirks.join(' / ')}` : '',
     ]),
   )
+  if (att.voice) {
+    S.push('')
+    S.push('### 話し方の主軸（上の指定と食い違う場合はこちらを優先）')
+    S.push(att.voice)
+  }
   if (forbidden.length) {
     S.push(`次の語は使いません: ${forbidden.map((w) => `「${w}」`).join('、')}`)
   }
@@ -283,8 +335,15 @@ export function compile(p: Persona): Compiled {
     '上記は演技指示ではなく、あなたの判断プロセスそのものです。話し方だけを真似て、判断基準や作業の進め方を無視してはいけません。',
   )
 
+  const ATT_REMINDER: Record<Attitude, string> = {
+    dom: ' 命令口調を崩さないこと。褒めないこと。',
+    neutral: '',
+    sub: ' へりくだった言い回しを崩さないこと。ただし態度が低いだけで、判断は上記のとおり。',
+  }
+
   const reminder =
     (pick(EGO_REMINDER, ego) ?? '').replace('{name}', p.meta.name) +
+    ATT_REMINDER[p.voice.attitude ?? 'neutral'] +
     (forbidden.length ? ` 禁句: ${forbidden.join('、')}。` : '')
 
   return { system: S.filter((l) => l !== undefined).join('\n'), reminder }
