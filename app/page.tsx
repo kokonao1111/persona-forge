@@ -146,8 +146,10 @@ function SetupScreen({
                 <button
                   key={p.id}
                   onClick={() => setActiveId(p.id)}
-                  className={`group flex w-full items-baseline gap-4 border-b border-line px-3 py-3.5 text-left ${
-                    on ? 'bg-panel' : 'hover:bg-panel/60'
+                  className={`group flex w-full items-baseline gap-4 border-b border-line py-3.5 pr-3 text-left transition-colors ${
+                    on
+                      ? 'border-l-2 border-l-accent bg-panel pl-[10px]'
+                      : 'border-l-2 border-l-transparent pl-[10px] hover:bg-panel/60'
                   }`}
                 >
                   <span
@@ -159,7 +161,11 @@ function SetupScreen({
                   <span className={`w-20 shrink-0 text-sm ${on ? 'text-accent' : ''}`}>
                     {p.meta.name}
                   </span>
-                  <span className="min-w-0 flex-1 font-sans text-xs leading-relaxed text-dim">
+                  <span
+                    className={`min-w-0 flex-1 font-sans text-xs leading-relaxed ${
+                      on ? 'text-fg' : 'text-dim'
+                    }`}
+                  >
                     {preset?.onRevision ?? p.identity.oneLiner}
                   </span>
                 </button>
@@ -186,7 +192,7 @@ function SetupScreen({
                     update((x) => ({ ...x, voice: { ...x.voice, attitude: a.key } }))
                   }
                   className={`flex-1 border-r border-line-2 py-2.5 text-xs last:border-r-0 ${
-                    on ? 'bg-accent text-black' : 'text-dim hover:bg-panel hover:text-fg'
+                    on ? 'bg-accent text-bg' : 'text-dim hover:bg-panel hover:text-fg'
                   }`}
                 >
                   {a.label}
@@ -213,7 +219,7 @@ function SetupScreen({
 
             <button
               onClick={onConfirm}
-              className="mt-5 w-full bg-accent py-3 text-sm font-bold tracking-wide text-black hover:brightness-110"
+              className="mt-5 w-full bg-accent py-3 text-sm font-bold tracking-wide text-bg hover:bg-fg"
             >
               話す →
             </button>
@@ -378,8 +384,9 @@ function ChatScreen({
             </div>
           )}
           {err && (
-            <div className="border-l-2 border-red-500 pl-4 font-sans text-xs text-red-400">
-              {err}
+            <div className="border-l-2 border-accent pl-4">
+              <div className="label mb-1 text-accent">error</div>
+              <p className="font-sans text-xs leading-relaxed text-dim">{err}</p>
             </div>
           )}
           <div ref={bottom} />
@@ -401,7 +408,7 @@ function ChatScreen({
           <button
             onClick={send}
             disabled={busy || !input.trim()}
-            className="shrink-0 border border-accent px-4 py-1.5 text-xs text-accent hover:bg-accent hover:text-black disabled:border-line-2 disabled:text-faint disabled:hover:bg-transparent"
+            className="shrink-0 border border-accent px-4 py-1.5 text-xs text-accent hover:bg-accent hover:text-bg disabled:border-line-2 disabled:text-faint disabled:hover:bg-transparent"
           >
             送信
           </button>
@@ -615,7 +622,7 @@ function Editor({
                 onClick={() => update((x) => ({ ...x, voice: { ...x.voice, attitude: a.key } }))}
                 className={`flex-1 border-r border-line-2 py-1.5 text-[11px] last:border-r-0 ${
                   (p.voice.attitude ?? 'neutral') === a.key
-                    ? 'bg-accent text-black'
+                    ? 'bg-accent text-bg'
                     : 'text-dim hover:text-fg'
                 }`}
               >

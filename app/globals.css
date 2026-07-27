@@ -6,15 +6,19 @@
  *  階層は色ではなく「罫線・字送り・文字サイズ」で作る。
  *  UIの構造物はすべて等幅、人間が読む文章だけプロポーショナル。
  */
+/*
+ * 色は使わない。白から黒までの5段階だけで階層を作る。
+ * 「選択されている」は色ではなく、明度・罫線・塗りの反転で示す。
+ */
 @theme {
-  --color-bg: #0b0b0c;
-  --color-panel: #101012;
-  --color-line: #1d1d20;
-  --color-line-2: #2c2c31;
-  --color-fg: #e7e7e9;
-  --color-dim: #8a8a93;
-  --color-faint: #5a5a63;
-  --color-accent: #c6f000;
+  --color-bg: #0a0a0a;
+  --color-panel: #131313;
+  --color-line: #1e1e1e;
+  --color-line-2: #303030;
+  --color-fg: #d2d2d2; /* 本文 */
+  --color-dim: #808080; /* 副次 */
+  --color-faint: #545454; /* ラベル・補足 */
+  --color-accent: #ffffff; /* 強調はここだけ。純白 */
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -76,7 +80,7 @@ input[type='range']::-webkit-slider-thumb {
 
 ::selection {
   background: var(--color-accent);
-  color: #000;
+  color: var(--color-bg);
 }
 
 /* スクロールバーも主張させない */
