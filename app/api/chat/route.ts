@@ -83,8 +83,11 @@ export async function POST(request: Request) {
  * 本文を少しずつ流す。1行 = 1つのJSON（NDJSON）で返し、
  * エラーもストリームの中に載せる（ヘッダを送った後では status を変えられないため）。
  *
- * hideUntilAnswer が true のときは <answer> が現れるまで何も流さない。
+ * hideUntilAnswer が true のときは、議論が終わるまで何も流さない。
  * 閉じタグが途中まで届いた状態で送ってしまわないよう、末尾は常に少し握っておく。
+ *
+ * モデルは <answer> を付け忘れることがある。その場合は </thinking> の直後から
+ * 流し始める。ここを取りこぼすと、議論がそのまま画面に出てしまう。
  */
 function streamAnswer(
   client: Anthropic,
@@ -93,6 +96,9 @@ function streamAnswer(
 ) {
   const OPEN = '<answer>'
   const CLOSE = '</answer>'
+  const THINK_END = '</thinking>'
+  /** 途中から流し始めた場合にタグの断片が混ざるので、送る直前に落とす */
+  const clean = (t: string) => t.replace(/<\/?(answer|thinking)>/gi, '')
   const enc = new TextEncoder()
 
   const body = new ReadableStream<Uint8Array>({
@@ -113,31 +119,42 @@ function streamAnswer(
 
           if (!started) {
             const i = buf.indexOf(OPEN)
-            if (i === -1) return
+            if (i !== -1) {
+              buf = buf.slice(i + OPEN.length)
+            } else {
+              // <answer> が無いまま議論だけ終わることがあるので、そこからでも始める
+              const j = buf.indexOf(THINK_END)
+              if (j === -1) return
+              buf = buf.slice(j + THINK_END.length)
+            }
             started = true
-            buf = buf.slice(i + OPEN.length).replace(/^\n+/, '')
+            buf = buf.replace(/^\s+/, '')
           }
 
           const j = buf.indexOf(CLOSE)
           if (j !== -1) {
-            if (j > 0) send({ t: buf.slice(0, j) })
+            if (j > 0) send({ t: clean(buf.slice(0, j)) })
             buf = ''
             finished = true
             return
           }
           // 閉じタグが分割して届く場合に備えて末尾を握る
           if (buf.length > CLOSE.length) {
-            send({ t: buf.slice(0, buf.length - CLOSE.length) })
+            send({ t: clean(buf.slice(0, buf.length - CLOSE.length)) })
             buf = buf.slice(buf.length - CLOSE.length)
           }
         })
 
         await stream.finalMessage()
 
-        if (!finished && buf) send({ t: buf })
-        // <answer> が一度も現れなかった場合は取りこぼさないよう全文を出す
-        if (!started) {
-          const fallback = whole.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim()
+        if (started) {
+          if (!finished && buf.trim()) send({ t: clean(buf) })
+        } else {
+          // 一度も流せていない場合だけ、議論を取り除いた全文を出す。
+          // ここを started のときにも実行すると、本文が二重に出る。
+          const fallback = clean(
+            whole.replace(/<thinking>[\s\S]*?(<\/thinking>|$)/gi, ''),
+          ).trim()
           if (fallback) send({ t: fallback })
         }
         send({ done: true })
@@ -167,17 +184,18 @@ function streamAnswer(
  * タグが欠けても本文を失わないよう、取れなかった場合は素通しする。
  */
 function split(raw: string): { text: string; deliberation: string | null } {
+  const clean = (t: string) => t.replace(/<\/?(answer|thinking)>/gi, '').trim()
   const think = raw.match(/<thinking>([\s\S]*?)<\/thinking>/i)?.[1]?.trim() ?? null
   const answer = raw.match(/<answer>([\s\S]*?)<\/answer>/i)?.[1]?.trim()
-  if (answer) return { text: answer, deliberation: think }
+  if (answer) return { text: clean(answer), deliberation: think }
 
   // <answer> の閉じタグが欠けた場合 → 開始タグ以降を本文とみなす
   const open = raw.match(/<answer>([\s\S]*)$/i)?.[1]?.trim()
-  if (open) return { text: open, deliberation: think }
+  if (open) return { text: clean(open), deliberation: think }
 
   // タグが一切ない場合 → <thinking> だけ取り除いて全部返す
-  const stripped = raw.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').trim()
-  return { text: stripped || raw, deliberation: think }
+  const stripped = clean(raw.replace(/<thinking>[\s\S]*?(<\/thinking>|$)/gi, ''))
+  return { text: stripped || clean(raw), deliberation: think }
 }
 
 /** APIエラーを、原因と次の一手が分かる日本語にする */
