@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "AI仮面",
-  description: "AIに仮面をかぶせる。言うことを聞かないAI",
+  description: "AIの性格を自分で設定できるツール",
 };
 
 export default function RootLayout({
